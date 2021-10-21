@@ -3,8 +3,11 @@ import functools
 from urllib import parse
 from typing import List, Tuple, Union
 
+from aiohttp.client import patch
+
 from waterbutler.core import provider, streams
 from waterbutler.core.path import WaterButlerPath, WaterButlerPathPart
+from waterbutler.core import exceptions
 
 from waterbutler.providers.rushfiles import settings as pd_settings
 from waterbutler.providers.rushfiles.metadata import (RushFilesRevision,
@@ -30,19 +33,72 @@ class RushFilesProvider(provider.BaseProvider):
     """Provider for RushFiles cloud storage service.
     """
     NAME = 'rushfiles'
-    BASE_URL = pd_settings.BASE_URL
+    # BASE_URL = pd_settings.BASE_URL
+    BASE_URL = "https://clientgateway.rushfiles.tsukaeru.team/api/shares/"
 
     def __init__(self, auth: dict, credentials: dict, settings: dict) -> None:
         super().__init__(auth, credentials, settings)
         #TODO Match with RDM-osf.io/addons/rushfiles/models.py:RushFilesProvider::serialize_waterbutler_*
         self.token = self.credentials['token']
         self.share = self.settings['share']
+        # print("auth: ",end="")
+        # print(auth)
+        # print("credentials: ",end="")
+        # print(credentials)
+        # print("settings: ",end="")
+        # print(settings)
 
     async def validate_v1_path(self, path: str, **kwargs) -> RushFilesPath:
-        raise NotImplementedError
+        is_folder = path.endswith('/')
+        response = await self.make_request(
+            'get',
+            self.build_url(str(self.share['id']), "children"),
+            expects=(200, 404,),
+            throws=exceptions.MetadataError,
+        )
+        data = await response.json()
+
+        if path == '/':
+            return RushFilesPath('/', _ids=[None], folder=True)
+
+        children_path_list = path.lstrip('/').split('/')
+        next_child_interId = data['Data'][0]['InternalName']
+        # next_child_search
+        for i in range(0, len(children_path_list)):
+            if i == len(children_path_list)-1:
+                if not is_folder:
+                    response = await self.make_request(
+                    'get',
+                    self.build_url(str(self.share['id']), 'virtualfiles', str(next_child_interId)),
+                    expects=(200, 404,),
+                    throws=exceptions.MetadataError,
+                    )
+                    data = await response.json()
+                    if data is None:
+                        raise exceptions.NotFoundError(path)
+            else:
+                response = await self.make_request(
+                    'get',
+                    self.build_url(str(self.share['id']), 'virtualfiles', str(next_child_interId), 'children'),
+                    expects=(200, 404,),
+                    throws=exceptions.MetadataError,
+                )
+                data = await response.json()
+                if data is None:
+                    raise exceptions.NotFoundError(path)
+                for res in data['Data']:
+                    if children_path_list[i] == res['PublicName']:
+                        next_child_interId = res['InternalName']
+                    else:
+                        raise exceptions.NotFoundError(path)
+
+
+        return RushFilesPath(path, prepend=is_folder)
+
 
     async def validate_path(self, path: str, **kwargs) -> RushFilesPath:
-        raise NotImplementedError
+        is_folder = path.endswith('/')
+        return RushFilesPath(path, prepend=is_folder)
 
     async def revalidate_path(self,
                               base: WaterButlerPath,
@@ -107,7 +163,17 @@ class RushFilesProvider(provider.BaseProvider):
                        revision=None,
                        **kwargs) -> Union[dict, BaseRushFilesMetadata,
                                           List[Union[BaseRushFilesMetadata, dict]]]:
-        raise NotImplementedError
+        # if path.identifier is None:
+        #     raise exceptions.MetadataError('{} not found'.format(str(path)), code=404)
+
+        if path.is_dir:
+            return await self._get_file_meta(path)
+        else:
+            pass
+            # return await self._file_metadata(path, revision=revision, raw=raw)
+    async def _get_file_meta(self, path: WaterButlerPath, raw: bool=False,
+                             revision: str=None) -> Union[dict, RushFilesFileMetadata]:
+        raise NotImplementedError 
 
     async def revisions(self, path: RushFilesPath,  # type: ignore
                         **kwargs) -> List[RushFilesRevision]:

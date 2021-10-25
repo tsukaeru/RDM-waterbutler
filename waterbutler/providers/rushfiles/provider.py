@@ -86,7 +86,7 @@ class RushFilesProvider(provider.BaseProvider):
                 if response.status == 404 or res['Data']['IsFile'] == is_folder:
                     raise exceptions.NotFoundError(path)
 
-        return RushFilesPath(path, prepend=is_folder)
+        return RushFilesPath(path, folder=is_folder)
 
     async def validate_path(self, path: str, **kwargs) -> RushFilesPath:
         if path == '/':
@@ -127,7 +127,7 @@ class RushFilesProvider(provider.BaseProvider):
                 
                 is_folder = not res['Data']['IsFile']
                     
-        return RushFilesPath(path, prepend=is_folder)
+        return RushFilesPath(path, folder=is_folder)
 
     async def revalidate_path(self,
                               base: WaterButlerPath,

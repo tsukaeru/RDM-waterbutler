@@ -49,12 +49,14 @@ class RushFilesProvider(provider.BaseProvider):
         # print(settings)
 
     async def validate_v1_path(self, path: str, **kwargs) -> RushFilesPath:
+        
         if path == '/':
-            return RushFilesPath('/', _ids=[None], folder=True)
+            return RushFilesPath('/', _ids=[self.share['id']], folder=True)
         
         is_folder = path.endswith('/')
         children_path_list = path.lstrip('/').split('/')
         parent_inter_id = self.share['id']
+        inter_id_list = [parent_inter_id]
 
         # next_child_search
         for i, child in enumerate(children_path_list):
@@ -72,6 +74,7 @@ class RushFilesProvider(provider.BaseProvider):
                 for data in res['Data']:
                     if child == data['PublicName']:
                         parent_inter_id = data['InternalName']
+                        inter_id_list.append(parent_inter_id)
                         break
                     if data == res['Data'][-1]:
                         raise exceptions.NotFoundError(path)
@@ -86,7 +89,7 @@ class RushFilesProvider(provider.BaseProvider):
                 if response.status == 404 or res['Data']['IsFile'] == is_folder:
                     raise exceptions.NotFoundError(path)
 
-        return RushFilesPath(path, folder=is_folder)
+        return RushFilesPath(path, folder=is_folder, _ids=inter_id_list)
 
     async def validate_path(self, path: str, **kwargs) -> RushFilesPath:
         if path == '/':
@@ -192,17 +195,13 @@ class RushFilesProvider(provider.BaseProvider):
                        revision=None,
                        **kwargs) -> Union[dict, BaseRushFilesMetadata,
                                           List[Union[BaseRushFilesMetadata, dict]]]:
-        # if path.identifier is None:
-        #     raise exceptions.MetadataError('{} not found'.format(str(path)), code=404)
+        if path.identifier is None:
+            raise exceptions.MetadataError('{} not found'.format(str(path)), code=404)
 
         if path.is_dir:
-            return await self._get_file_meta(path)
-        else:
-            pass
-            # return await self._file_metadata(path, revision=revision, raw=raw)
-    async def _get_file_meta(self, path: WaterButlerPath, raw: bool=False,
-                             revision: str=None) -> Union[dict, RushFilesFileMetadata]:
-        raise NotImplementedError 
+            return await self._folder_metadata(path, raw=raw)
+
+        return await self._file_metadata(path, revision=revision, raw=raw)
 
     async def revisions(self, path: RushFilesPath,  # type: ignore
                         **kwargs) -> List[RushFilesRevision]:
@@ -226,4 +225,48 @@ class RushFilesProvider(provider.BaseProvider):
         # I will check and if there is, it may be more efficient then default behaviour.
         return super().zip(path, kwargs)
 
-    
+    async def _folder_metadata(self,
+                               path: RushFilesPath,
+                               raw: bool=False) -> List[Union[BaseRushFilesMetadata, dict]]:
+
+        share_id = self.share['id']
+        inter_id =  path.identifier
+        res_list = []
+        while inter_id != share_id:
+            response = await self.make_request(
+                'get',
+                self.build_url(str(share_id), 'virtualfiles', inter_id),
+                expects=(200,),
+                throws=exceptions.MetadataError,
+            )
+
+            if response.status != 200:
+                raise exceptions.NotFoundError(path)
+                
+            res = await response.json()
+            res_list.append(res['Data'])
+            inter_id = res['Data']['ParrentId']
+        
+        print("res_list: ", end="")
+        print(res_list)
+
+        return res_list
+
+    async def _file_metadata(self,
+                             path: RushFilesPath,
+                             revision: str=None,
+                             raw: bool=False) -> Union[dict, BaseRushFilesMetadata]:
+
+        response = await self.make_request(
+            'get',
+            self.build_url(str(self.share['id']), 'virtualfiles', path.identifier),
+            expects=(200,),
+            throws=exceptions.MetadataError,
+        )
+
+        if response.status != 200:
+            raise exceptions.NotFoundError(path)
+
+        res = await response.json()
+
+        return res

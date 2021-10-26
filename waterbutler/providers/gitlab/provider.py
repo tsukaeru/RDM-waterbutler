@@ -132,7 +132,7 @@ class GitLabProvider(provider.BaseProvider):
 
         if not commit_sha and not branch_name:
             branch_name = await self._fetch_default_branch()
-
+    
         if path == '/':
             return GitLabPath(path, _ids=[(commit_sha, branch_name)])
 

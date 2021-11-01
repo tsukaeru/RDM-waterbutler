@@ -47,6 +47,16 @@ def settings():
 }
 
 @pytest.fixture
+def search_children_response():
+    return {
+        'Data':[{
+            'InternalName': '0f04f33f715a4d5890307f114bf24e9c',
+            'IsFile': 'true',
+            'PublicName': 'Tasks.xlsx'
+        }]
+    }
+
+@pytest.fixture
 def file_metadata_response():
     return {
         'Data': {
@@ -54,6 +64,7 @@ def file_metadata_response():
             'IsFile': 'true',
         }
     }
+
 
 
 @pytest.fixture
@@ -65,15 +76,18 @@ class TestValidatePath:
 
     @pytest.mark.asyncio
     @pytest.mark.aiohttpretty
-    async def test_validate_v1_path_file(self, provider, file_metadata_response):
+    async def test_validate_v1_path_file(self, provider, search_children_response, file_metadata_response):
         file_name = 'Tasks.xlsx'
         file_inter_id = '0f04f33f715a4d5890307f114bf24e9c' # Tasks.xlsx
 
+        root_url = provider.build_url(
+            str(provider.share['id']), 'virtualfiles', str(provider.share['id']), 'children')
         good_url = provider.build_url(
             str(provider.share['id']), 'virtualfiles', file_inter_id)
         bad_url = provider.build_url(
             str(provider.share['id']), 'virtualfiles', file_inter_id, 'children')
 
+        aiohttpretty.register_json_uri('GET', root_url, body=search_children_response, status=200)
         aiohttpretty.register_json_uri('GET', good_url, body=file_metadata_response, status=200)
         aiohttpretty.register_json_uri('GET', bad_url, status=404)
 

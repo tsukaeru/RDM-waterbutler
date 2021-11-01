@@ -54,8 +54,10 @@ class RushFilesProvider(provider.BaseProvider):
         
         is_folder = path.endswith('/')
         children_path_list = path.lstrip('/').split('/')
-        current_inter_id = self.share['id']
+        if is_folder:
+            children_path_list.pop()
 
+        current_inter_id = self.share['id']
         # next_child_search
         for child in children_path_list:
             response = await self.make_request(
@@ -90,6 +92,9 @@ class RushFilesProvider(provider.BaseProvider):
         
         is_folder = path.endswith('/')
         children_path_list = path.lstrip('/').split('/')
+        if is_folder:
+            children_path_list.pop()
+
         current_inter_id = self.share['id']
 
         # next_child_search

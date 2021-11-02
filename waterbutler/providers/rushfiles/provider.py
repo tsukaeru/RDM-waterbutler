@@ -244,7 +244,10 @@ class RushFilesProvider(provider.BaseProvider):
                 raise exceptions.NotFoundError(path)
                 
             res = await response.json()
-            res_list.append(res['Data'])
+            if raw:
+                res_list.append(res)
+            else:
+                RushFilesFileMetadata(res, path)
             inter_id = res['Data']['ParrentId']
         
         print("res_list: ", end="")
@@ -269,4 +272,4 @@ class RushFilesProvider(provider.BaseProvider):
 
         res = await response.json()
 
-        return res
+        return res if raw else RushFilesFileMetadata(res, path)

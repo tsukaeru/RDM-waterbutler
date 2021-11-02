@@ -47,6 +47,22 @@ class RushFilesFileMetadata(BaseRushFilesMetadata, metadata.BaseFileMetadata):
     @property
     def name(self) -> str:
         return self.raw['Data']['PublicName']
+    
+    @property
+    def internal_name(self) -> str:
+        return self.raw['Data']['InternalName']
+
+    @property
+    def share_id(self) -> str:
+        return self.raw['Data']['ShareId']
+    
+    @property
+    def parent_id(self) -> str:
+        return self.raw['Data']['ParrentId']
+        
+    @property
+    def deleted(self) -> bool:
+        return self.raw['Data']['Deleted']
 
     @property
     def path(self) -> str:

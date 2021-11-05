@@ -9,16 +9,13 @@ from waterbutler.providers.rushfiles.metadata import RushFilesRevision
 from waterbutler.providers.rushfiles.metadata import RushFilesFileMetadata
 from waterbutler.providers.rushfiles.metadata import RushFilesFolderMetadata
 
+from tests.providers.googledrive.fixtures import(
+    root_provider_fixtures,
+)
 @pytest.fixture
 def basepath():
     return RushFilesPath('/conrad')
-
-@pytest.fixture
-def root_provider_fixtures():
-    # fixtures for testing validate_v1_path for root provider
-    with open(os.path.join(os.path.dirname(__file__), 'fixtures/root_provider.json'), 'r') as fp:
-        return json.load(fp)
-
+    
 class TestMetadata:
 
     def test_file_metadata_drive(self, basepath, root_provider_fixtures):

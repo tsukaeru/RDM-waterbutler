@@ -55,8 +55,10 @@ class RushFilesProvider(provider.BaseProvider):
         
         is_folder = path.endswith('/')
         children_path_list = path.lstrip('/').split('/')
+        inter_id_list = []
+
         if is_folder:
-            children_path_list.pop(
+            children_path_list.pop()
 
         current_inter_id = self.share['id']
         # next_child_search
@@ -71,7 +73,8 @@ class RushFilesProvider(provider.BaseProvider):
             if response.status == 404:
                 raise exceptions.NotFoundError(path)
             res = await response.json()
-            current_inter_id = self.search_path(res, child)
+            current_inter_id = self.search_inter_id(res, child)
+            inter_id_list.append(current_inter_id)
             if not current_inter_id:
                 raise exceptions.NotFoundError(path)
             
@@ -93,6 +96,7 @@ class RushFilesProvider(provider.BaseProvider):
         
         is_folder = path.endswith('/')
         children_path_list = path.lstrip('/').split('/')
+        inter_id_list = []
         if is_folder:
             children_path_list.pop()
 
@@ -110,7 +114,8 @@ class RushFilesProvider(provider.BaseProvider):
             if response.status == 404:
                 raise exceptions.NotFoundError(path)
             res = await response.json()
-            current_inter_id = self.search_path(res, child)
+            current_inter_id = self.search_inter_id(res, child)
+            inter_id_list.append(current_inter_id)
             if not current_inter_id:
                 raise exceptions.NotFoundError(path)
             
@@ -127,7 +132,7 @@ class RushFilesProvider(provider.BaseProvider):
         if res['Data']['IsFile'] == False and is_folder == False:
             is_folder = True
 
-        return RushFilesPath(path, folder=is_folder)                    
+        return RushFilesPath(path, folder=is_folder, _ids=inter_id_list)                    
 
     async def revalidate_path(self,
                               base: WaterButlerPath,
@@ -271,7 +276,7 @@ class RushFilesProvider(provider.BaseProvider):
 
         return res if raw else RushFilesFileMetadata(res, path)
 
-    def search_path(self, res, child):
+    def search_inter_id(self, res, child):
         for data in res['Data']:
             if child == data['PublicName']:
                 return data['InternalName'] 

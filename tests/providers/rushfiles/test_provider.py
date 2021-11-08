@@ -14,36 +14,101 @@ from waterbutler.core.path import WaterButlerPath
 
 from waterbutler.providers.rushfiles import settings as ds
 from waterbutler.providers.rushfiles import RushFilesProvider
-from waterbutler.providers.rushfiles import utils as drive_utils
+# from waterbutler.providers.rushfiles import utils as drive_utils
 from waterbutler.providers.rushfiles.provider import RushFilesPath
 from waterbutler.providers.rushfiles.metadata import (RushFilesRevision,
                                                         RushFilesFileMetadata,
                                                         RushFilesFolderMetadata,
                                                         RushFilesFileRevisionMetadata)
 
-from tests.providers.rushfiles.fixtures import(error_fixtures,
-                                                 sharing_fixtures,
-                                                 revision_fixtures,
-                                                 root_provider_fixtures)
+# from tests.providers.rushfiles.fixtures import(error_fixtures,
+                                                #  sharing_fixtures,
+                                                #  revision_fixtures,
+                                                #  root_provider_fixtures)
+
+@pytest.fixture
+def auth():
+    return {
+        'name': 'cat',
+        'email': 'cat@cat.com',
+    }
+
+@pytest.fixture
+def credentials():
+    return {'token': 'naps'}
+
+@pytest.fixture
+def settings():
+    return {
+        'share':{
+            'name': 'rush',
+            'id': '123',
+        }
+}
+
+@pytest.fixture
+def search_for_file_response():
+    return {
+        'Data':[{
+            'InternalName': '0f04f33f715a4d5890307f114bf24e9c',
+            'IsFile': True,
+            'PublicName': 'files.txt'
+        }]
+    }
+
+@pytest.fixture
+def file_metadata_response():
+    return {
+        'Data': {
+            'ShareId': '0f04f33f715a4d5890307f114bf24e9c',
+            'IsFile': True
+        }
+    }
+
+@pytest.fixture
+def search_for_folder_response():
+    return {
+        'Data':[{
+            'InternalName': '088e80f914f74290b15ef9cf5d63e06a',
+            'IsFile': False,
+            'PublicName': 'fooFolder'
+        }]
+    }
+
+@pytest.fixture
+def folder_metadata_response():
+    return {
+        'Data': {
+            'ShareId': '088e80f914f74290b15ef9cf5d63e06a',
+            'IsFile': False
+        }
+    }
+
+
+
+@pytest.fixture
+def provider(auth, credentials, settings):
+    return RushFilesProvider(auth, credentials, settings)
+
 
 class TestValidatePath:
 
     @pytest.mark.asyncio
     @pytest.mark.aiohttpretty
-    async def test_validate_v1_path_file(self, provider, search_for_file_response,
-                                         actual_file_response, no_folder_response):
-        file_name = 'Tasks.xlsx'
+    async def test_validate_v1_path_file(self, provider, search_for_file_response, file_metadata_response):
+        file_name = 'files.txt'
         file_inter_id = '0f04f33f715a4d5890307f114bf24e9c' # Tasks.xlsx
 
-        query_url = provider.build_url(
+        children_of_root_url = provider.build_url(
+            str(provider.share['id']), 'virtualfiles', str(provider.share['id']), 'children')
+        good_url = provider.build_url(
             str(provider.share['id']), 'virtualfiles', file_inter_id)
-        wrong_query_url = provider.build_url(
+        bad_url = provider.build_url(
             str(provider.share['id']), 'virtualfiles', file_inter_id, 'children')
-        # specific_url = provider.build_url(str(self.share['id']), 'virtualfiles', str(provider.share['id']), 'children')
 
-        aiohttpretty.register_json_uri('GET', query_url, body=search_for_file_response)
-        aiohttpretty.register_json_uri('GET', wrong_query_url, body=no_folder_response)
-        # aiohttpretty.register_json_uri('GET', specific_url, body=actual_file_response)
+        aiohttpretty.register_json_uri('GET', children_of_root_url, body=search_for_file_response, status=200)
+        aiohttpretty.register_json_uri('GET', good_url, body=file_metadata_response, status=200)
+        aiohttpretty.register_json_uri('GET', bad_url, status=404)
 
         try:
             wb_path_v1 = await provider.validate_v1_path('/' + file_name)
@@ -61,20 +126,20 @@ class TestValidatePath:
 
     @pytest.mark.asyncio
     @pytest.mark.aiohttpretty
-    async def test_validate_v1_path_folder(self, provider, search_for_folder_response,
-                                           actual_folder_response, no_file_response):
-        folder_name = 'GakuNin RDM'
-        folder_inter_id = '088e80f914f74290b15ef9cf5d63e06a' # GakuNin RDM
+    async def test_validate_v1_path_folder(self, provider, search_for_folder_response, folder_metadata_response):
+        folder_name = 'fooFolder'
+        folder_inter_id = '088e80f914f74290b15ef9cf5d63e06a'
 
-        look_it_query_url = provider.build_url(
-            str(provider.share['id']), 'virtualfiles', folder_inter_id)
-        look_children_query_url = provider.build_url(
+        children_of_root_url = provider.build_url(
             str(provider.share['id']), 'virtualfiles', str(provider.share['id']), 'children')
-        # specific_url = provider.build_url('files', folder_id, fields='id,title,mimeType')
+        good_url = provider.build_url(
+            str(provider.share['id']), 'virtualfiles', folder_inter_id)
+        bad_url = provider.build_url(
+            str(provider.share['id']), 'virtualfiles', folder_inter_id, 'children')
 
-        aiohttpretty.register_json_uri('GET', look_it_query_url, body=search_for_folder_response)
-        aiohttpretty.register_json_uri('GET', look_children_query_url, body=search_for_folder_response)
-        # aiohttpretty.register_json_uri('GET', specific_url, body=actual_folder_response)
+        aiohttpretty.register_json_uri('GET', children_of_root_url, body=search_for_folder_response, status=200)
+        aiohttpretty.register_json_uri('GET', good_url, body=folder_metadata_response, status=200)
+        aiohttpretty.register_json_uri('GET', bad_url, status=404)
 
         try:
             wb_path_v1 = await provider.validate_v1_path('/' + folder_name + '/')

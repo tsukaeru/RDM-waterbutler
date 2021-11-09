@@ -48,6 +48,7 @@ class RushFilesProvider(provider.BaseProvider):
 
         if not rf_path.identifier:
             raise exceptions.NotFoundError(str(rf_path))
+
         if rf_path.is_dir != is_folder:
             raise exceptions.NotFoundError(path)
         return rf_path
@@ -56,12 +57,12 @@ class RushFilesProvider(provider.BaseProvider):
         if path == '/':
             return RushFilesPath('/', _ids=[self.share['id']], folder=True)
         
-        is_folder = path.endswith('/')
+        is_file = not path.endswith('/')
         children_path_list = path.strip('/').split('/')
         inter_id_list = [self.share['id']]
         current_inter_id = self.share['id']
 
-        for child in children_path_list:
+        for i, child in enumerate(children_path_list):
             response = await self.make_request(
                 'GET',
                 self.build_url(str(self.share['id']), 'virtualfiles', str(current_inter_id), 'children'),
@@ -71,17 +72,17 @@ class RushFilesProvider(provider.BaseProvider):
             if response.status == 404:
                 raise exceptions.NotFoundError(path)
             res = await response.json()
-            current_inter_id, index = self.search_inter_id(res, child)
-            if not current_inter_id:
-                raise exceptions.NotFoundError(path)
+            current_inter_id, index = self._search_inter_id(res, child)
             inter_id_list.append(current_inter_id)
+            if not current_inter_id:
+                if i == len(children_path_list)-1:
+                    return RushFilesPath(path,  _ids=inter_id_list)
+                raise exceptions.NotFoundError(path)
             
-        if res['Data'][index]['IsFile'] == True and is_folder == True:
+        if res['Data'][index]['IsFile'] != is_file:
             raise exceptions.NotFoundError(path)
-        if res['Data'][index]['IsFile'] == False and is_folder == False:
-            is_folder = True
 
-        return RushFilesPath(path, folder=is_folder, _ids=inter_id_list)                    
+        return RushFilesPath(path, folder= not is_file, _ids=inter_id_list)                    
 
     async def revalidate_path(self,
                               base: WaterButlerPath,
@@ -152,7 +153,7 @@ class RushFilesProvider(provider.BaseProvider):
         if path.is_dir:
             return await self._folder_metadata(path, raw=raw)
 
-        return await self._file_metadata(path, revision=revision, raw=raw)
+        return await self._file_metadata(path, raw=raw)
 
     async def revisions(self, path: RushFilesPath,  # type: ignore
                         **kwargs) -> List[RushFilesRevision]:
@@ -181,36 +182,25 @@ class RushFilesProvider(provider.BaseProvider):
                                raw: bool=False) -> List[Union[BaseRushFilesMetadata, dict]]:
         share_id = self.share['id']
         inter_id =  path.identifier
-        res_list = []
-        response = await self.make_request(
-            'GET',
-            self.build_url(str(share_id), 'virtualfiles', inter_id),
-            expects=(200,),
-            throws=exceptions.MetadataError,
-        )
-
-        if response.status != 200:
-            raise exceptions.NotFoundError(path)
-        res = await response.json()
-        res_list.append(res)
 
         response = await self.make_request(
             'GET',
             self.build_url(str(share_id), 'virtualfiles', inter_id, 'children'),
-            expects=(200,),
+            expects=(200, 404,),
             throws=exceptions.MetadataError,
         )
 
-        if response.status != 200:
+        if response.status == 404:
             raise exceptions.NotFoundError(path)
         res = await response.json()
-        res_list.append(res)
 
         if raw:
-            res_list.append(res)
-            return res_list
+            return res['Data']
         else:
-            return RushFilesFileMetadata(res, path)
+            ret = []
+            for data in res['Data']:
+                ret.append(RushFilesFileMetadata(data, path))
+            return ret
 
     async def _file_metadata(self,
                              path: RushFilesPath,
@@ -219,18 +209,18 @@ class RushFilesProvider(provider.BaseProvider):
         response = await self.make_request(
             'GET',
             self.build_url(str(self.share['id']), 'virtualfiles', path.identifier),
-            expects=(200,),
+            expects=(200, 404,),
             throws=exceptions.MetadataError,
         )
 
-        if response.status != 200:
+        if response.status == 404:
             raise exceptions.NotFoundError(path)
 
         res = await response.json()
 
-        return res if raw else RushFilesFileMetadata(res, path)
+        return res['Data'] if raw else RushFilesFileMetadata(res['Data'], path)
 
-    def search_inter_id(self, 
+    def _search_inter_id(self, 
                         res: dict, 
                         child: str) -> Union[str,int,None]:
         for i, data in enumerate(res['Data']):

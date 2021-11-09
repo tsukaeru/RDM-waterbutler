@@ -1,4 +1,6 @@
 import typing
+
+from waterbutler.core import utils
 from waterbutler.core import metadata
 
 
@@ -20,78 +22,51 @@ class RushFilesFolderMetadata(BaseRushFilesMetadata, metadata.BaseFolderMetadata
 
     @property
     def name(self) -> str:
-        return self.raw['Data']['PublicName']
-
-    @property
-    def internal_name(self) -> str:
-        return self.raw['Data']['InternalName']
-
-    @property
-    def share_id(self) -> str:
-        return self.raw['Data']['ShareId']
-    
-    @property
-    def parent_id(self) -> str:
-        return self.raw['Data']['ParrentId']
-        
-    @property
-    def deleted(self) -> bool:
-        return self.raw['Data']['Deleted']
+        return self.raw['PublicName']
     
     @property
     def path(self) -> str:
         return '/' + self._path.raw_path
 
+    @property
+    def extra(self):
+        return {'internalName': self.raw['InternalName'],
+                'shareId': self.raw['ShareId'],
+                'parentId': self.raw['ParrentId'],
+                'deleted': self.raw['Deleted']}
+
 
 class RushFilesFileMetadata(BaseRushFilesMetadata, metadata.BaseFileMetadata):
     @property
     def name(self) -> str:
-        return self.raw['Data']['PublicName']
+        return self.raw['PublicName']
     
-    @property
-    def internal_name(self) -> str:
-        return self.raw['Data']['InternalName']
-
-    @property
-    def share_id(self) -> str:
-        return self.raw['Data']['ShareId']
-    
-    @property
-    def parent_id(self) -> str:
-        return self.raw['Data']['ParrentId']
-        
-    @property
-    def deleted(self) -> bool:
-        return self.raw['Data']['Deleted']
-
     @property
     def path(self) -> str:
         return '/' + self._path.raw_path
 
     @property
     def size(self) -> typing.Union[int, str]:
-        raise NotImplementedError
+        return None
 
     @property
     def modified(self) -> str:
-        return self.raw['Data']['LastWriteTime']
+        return self.raw['LastWriteTime']
 
     @property
     def created_utc(self) -> str:
-        return self.raw['Data']['CreationTime']
+        return utils.normalize_datetime(self.raw['CreationTime'])
 
     @property
     def content_type(self) -> typing.Union[str, None]:
-        if self.raw['Data']['IsFile']:
-            return 'file'
-        else:
-            return 'folder'
-
+        return None
+    
     @property
-    def etag(self) -> typing.Union[str, None]:
-        #TODO Can we return something? Remove if not
-        raise NotImplementedError
-
+    def extra(self):
+        return {'internalName': self.raw['InternalName'],
+                'shareId': self.raw['ShareId'],
+                'parentId': self.raw['ParrentId'],
+                'deleted': self.raw['Deleted']}
 
 
 # TODO Remove if not necessary

@@ -49,7 +49,7 @@ class RushFilesProvider(provider.BaseProvider):
         if not rf_path.identifier:
             raise exceptions.NotFoundError(str(rf_path))
 
-        if rf_path.is_dir != is_folder:
+        if rf_path.is_dir and not is_folder:
             raise exceptions.NotFoundError(path)
         return rf_path
 
@@ -57,7 +57,7 @@ class RushFilesProvider(provider.BaseProvider):
         if path == '/':
             return RushFilesPath('/', _ids=[self.share['id']], folder=True)
         
-        is_file = not path.endswith('/')
+        is_folder = path.endswith('/')
         children_path_list = path.strip('/').split('/')
         inter_id_list = [self.share['id']]
         current_inter_id = self.share['id']
@@ -79,10 +79,10 @@ class RushFilesProvider(provider.BaseProvider):
                     return RushFilesPath(path,  _ids=inter_id_list)
                 raise exceptions.NotFoundError(path)
             
-        if res['Data'][index]['IsFile'] != is_file:
+        if res['Data'][index]['IsFile'] and is_folder:
             raise exceptions.NotFoundError(path)
 
-        return RushFilesPath(path, folder= not is_file, _ids=inter_id_list)                    
+        return RushFilesPath(path, folder= is_folder, _ids=inter_id_list)                    
 
     async def revalidate_path(self,
                               base: WaterButlerPath,

@@ -80,12 +80,12 @@ class RushFilesFileMetadata(BaseRushFilesMetadata, metadata.BaseFileMetadata):
     def created_utc(self) -> str:
         return self.raw['Data']['CreationTime']
 
-    # @property
-    # def content_type(self) -> typing.Union[str, None]:
-    #     if self.raw['Data']['IsFile']:
-    #         return 'file'
-    #     else:
-    #         return 'folder'
+    @property
+    def content_type(self) -> typing.Union[str, None]:
+        if self.raw['Data']['IsFile']:
+            return 'file'
+        else:
+            return 'folder'
 
     @property
     def etag(self) -> typing.Union[str, None]:

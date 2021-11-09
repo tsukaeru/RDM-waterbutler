@@ -58,7 +58,7 @@ class RushFilesProvider(provider.BaseProvider):
         
         is_folder = path.endswith('/')
         children_path_list = path.strip('/').split('/')
-        inter_id_list = []
+        inter_id_list = [self.share['id']]
         current_inter_id = self.share['id']
 
         for child in children_path_list:
@@ -68,15 +68,16 @@ class RushFilesProvider(provider.BaseProvider):
                 expects=(200, 404,),
                 throws=exceptions.MetadataError,
             )
-            
             if response.status == 404:
                 raise exceptions.NotFoundError(path)
             res = await response.json()
             current_inter_id, index = self.search_inter_id(res, child)
-            inter_id_list.append(current_inter_id)
             if not current_inter_id:
                 raise exceptions.NotFoundError(path)
+            inter_id_list.append(current_inter_id)
             
+        if res['Data'][index]['IsFile'] == True and is_folder == True:
+            raise exceptions.NotFoundError(path)
         if res['Data'][index]['IsFile'] == False and is_folder == False:
             is_folder = True
 
@@ -182,8 +183,8 @@ class RushFilesProvider(provider.BaseProvider):
         inter_id =  path.identifier
         res_list = []
         response = await self.make_request(
-            'get',
-            self.build_url(str(share_id), 'virtualfiles', inter_id, 'children'),
+            'GET',
+            self.build_url(str(share_id), 'virtualfiles', inter_id),
             expects=(200,),
             throws=exceptions.MetadataError,
         )
@@ -194,7 +195,7 @@ class RushFilesProvider(provider.BaseProvider):
         res_list.append(res)
 
         response = await self.make_request(
-            'get',
+            'GET',
             self.build_url(str(share_id), 'virtualfiles', inter_id, 'children'),
             expects=(200,),
             throws=exceptions.MetadataError,
@@ -216,7 +217,7 @@ class RushFilesProvider(provider.BaseProvider):
                              revision: str=None,
                              raw: bool=False) -> Union[dict, BaseRushFilesMetadata]:
         response = await self.make_request(
-            'get',
+            'GET',
             self.build_url(str(self.share['id']), 'virtualfiles', path.identifier),
             expects=(200,),
             throws=exceptions.MetadataError,
@@ -235,4 +236,4 @@ class RushFilesProvider(provider.BaseProvider):
         for i, data in enumerate(res['Data']):
             if child == data['PublicName']:
                 return data['InternalName'], i
-        return None
+        return None, None

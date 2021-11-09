@@ -12,6 +12,7 @@ from waterbutler.providers.rushfiles.metadata import RushFilesFolderMetadata
 from tests.providers.rushfiles.fixtures import(
     root_provider_fixtures,
 )
+
 @pytest.fixture
 def basepath():
     return RushFilesPath('/conrad')
@@ -19,7 +20,6 @@ def basepath():
 class TestMetadata:
 
     def test_file_metadata(self, basepath, root_provider_fixtures):
-        print(root_provider_fixtures)
         item = root_provider_fixtures['file_metadata']
         path = basepath.child(item['Data']['PublicName'])
         parsed = RushFilesFileMetadata(item, path)

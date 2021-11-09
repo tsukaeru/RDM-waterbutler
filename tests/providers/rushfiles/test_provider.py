@@ -90,7 +90,6 @@ def folder_metadata_response():
 def provider(auth, credentials, settings):
     return RushFilesProvider(auth, credentials, settings)
 
-
 class TestValidatePath:
 
     @pytest.mark.asyncio

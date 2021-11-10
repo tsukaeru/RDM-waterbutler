@@ -141,7 +141,7 @@ class RushFilesProvider(provider.BaseProvider):
             raise exceptions.NotFoundError(str(path))
         if path.is_root:
             raise exceptions.DeleteError(
-                'Delete permission required',
+                'root cannot be deleted',
                 code=400
             )
 
@@ -149,7 +149,7 @@ class RushFilesProvider(provider.BaseProvider):
         if not metadata.extra['deleted']:
             raise exceptions.DeleteError(
                 'Delete permission required',
-                code=400
+                code=403
             )
         response = await self.make_request(
                         'DELETE',

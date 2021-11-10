@@ -275,7 +275,7 @@ class TestDelete:
             await provider.delete(path)
 
         assert e.value.message == 'Delete permission required'
-        assert e.value.code == 400
+        assert e.value.code == 403
 
     @pytest.mark.asyncio
     @pytest.mark.aiohttpretty
@@ -305,7 +305,7 @@ class TestDelete:
             await provider.delete(path)
 
         assert e.value.message == 'Delete permission required'
-        assert e.value.code == 400
+        assert e.value.code == 403
 
     @pytest.mark.asyncio
     async def test_must_not_be_none(self, provider):
@@ -325,6 +325,6 @@ class TestDelete:
         with pytest.raises(exceptions.DeleteError) as e:
             await provider.delete(path)
 
-        assert e.value.message == 'Delete permission required'
+        assert e.value.message == 'root cannot be deleted'
         assert e.value.code == 400
     

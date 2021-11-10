@@ -47,7 +47,7 @@ class RushFilesFileMetadata(BaseRushFilesMetadata, metadata.BaseFileMetadata):
 
     @property
     def size(self) -> typing.Union[int, str]:
-        return None
+        return self.raw['EndOfFile']
 
     @property
     def modified(self) -> str:

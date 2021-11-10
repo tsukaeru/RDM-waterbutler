@@ -29,7 +29,7 @@ class TestMetadata:
         assert path.name == item['PublicName']
         assert parsed.path == '/' + os.path.join(*[x.raw for x in path.parts])
         assert parsed.modified == item['LastWriteTime']
-        assert parsed.size == None
+        assert parsed.size == item['EndOfFile']
         assert parsed.created_utc == utils.normalize_datetime(item['CreationTime'])
         assert parsed.content_type == None
         assert parsed.extra == {'internalName': item['InternalName'],

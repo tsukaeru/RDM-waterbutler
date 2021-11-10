@@ -43,14 +43,11 @@ class RushFilesProvider(provider.BaseProvider):
         self.share = self.settings['share']
 
     async def validate_v1_path(self, path: str, **kwargs) -> RushFilesPath:
-        is_folder = path.endswith('/')
         rf_path = await self.validate_path(path, **kwargs)
 
         if not rf_path.identifier:
             raise exceptions.NotFoundError(str(rf_path))
 
-        if rf_path.is_dir and not is_folder:
-            raise exceptions.NotFoundError(path)
         return rf_path
 
     async def validate_path(self, path: str, **kwargs) -> RushFilesPath:
@@ -79,7 +76,7 @@ class RushFilesProvider(provider.BaseProvider):
                     return RushFilesPath(path,  _ids=inter_id_list)
                 raise exceptions.NotFoundError(path)
             
-        if res['Data'][index]['IsFile'] and is_folder:
+        if res['Data'][index]['IsFile'] == is_folder:
             raise exceptions.NotFoundError(path)
 
         return RushFilesPath(path, folder= is_folder, _ids=inter_id_list)                    
@@ -199,7 +196,10 @@ class RushFilesProvider(provider.BaseProvider):
         else:
             ret = []
             for data in res['Data']:
-                ret.append(RushFilesFileMetadata(data, path))
+                if data['IsFile']:
+                    ret.append(RushFilesFileMetadata(data, path))
+                else:
+                    ret.append(RushFilesFolderMetadata(data, path))
             return ret
 
     async def _file_metadata(self,

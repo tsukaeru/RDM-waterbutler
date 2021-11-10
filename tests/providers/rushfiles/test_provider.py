@@ -21,10 +21,7 @@ from waterbutler.providers.rushfiles.metadata import (RushFilesRevision,
                                                         RushFilesFolderMetadata,
                                                         RushFilesFileRevisionMetadata)
 
-# from tests.providers.rushfiles.fixtures import(error_fixtures,
-                                                #  sharing_fixtures,
-                                                #  revision_fixtures,
-                                                #  root_provider_fixtures)
+from tests.providers.rushfiles.fixtures import root_provider_fixtures
 
 @pytest.fixture
 def auth():
@@ -246,3 +243,86 @@ class TestValidatePath:
 
     #     result = await provider.revalidate_path(path, file_name, True)
     #     assert result.name in path.name
+class TestDelete:
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_file_ok(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['file_metadata_delete_ok']
+        path = RushFilesPath('/Tasks.xlsx', _ids=(None, item['InternalName']))
+        url = provider.build_url(str(provider.share['id']), 'files', item['InternalName'])
+        url_body = json.dumps({
+                        'TransmitId': '1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A',
+                        'ClientJournalEventType': 1,
+                        'DeviceId': 'waterbutler'
+                    })
+
+        aiohttpretty.register_uri('DELETE', url, body=url_body, status=200)
+
+        await provider.delete(path)
+
+        assert aiohttpretty.has_call(method='DELETE', uri=url)
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_file_delete_ng(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['file_metadata']
+        path = RushFilesPath('/Tasks.xlsx', _ids=(None, item['InternalName']))
+        
+        with pytest.raises(exceptions.DeleteError) as e:
+            await provider.delete(path)
+
+        assert e.value.message == 'Delete permission required'
+        assert e.value.code == 400
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_folder_ok(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['folder_metadata_delete_ok']
+        path = RushFilesPath('/GakuNin RDM', _ids=(None, item['InternalName']))
+        url = provider.build_url(str(provider.share['id']), 'files', item['InternalName'])
+        url_body = json.dumps({
+                        'TransmitId': '1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A',
+                        'ClientJournalEventType': 1,
+                        'DeviceId': 'waterbutler'
+                    })
+
+        aiohttpretty.register_uri('DELETE', url, body=url_body, status=200)
+
+        await provider.delete(path)
+
+        assert aiohttpretty.has_call(method='DELETE', uri=url)
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_folder_ng(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['folder_metadata']
+        path = RushFilesPath('/GakuNin RDM', _ids=(None, item['InternalName']))
+
+        with pytest.raises(exceptions.DeleteError) as e:
+            await provider.delete(path)
+
+        assert e.value.message == 'Delete permission required'
+        assert e.value.code == 400
+
+    @pytest.mark.asyncio
+    async def test_must_not_be_none(self, provider):
+        path = RushFilesPath('/Goats')
+
+        with pytest.raises(exceptions.NotFoundError) as e:
+            await provider.delete(path)
+
+        assert e.value.code == 404
+        assert str(path) in e.value.message
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_root(self, provider, root_provider_fixtures):
+        path = RushFilesPath('/', _ids=(provider.share['id']))
+
+        with pytest.raises(exceptions.DeleteError) as e:
+            await provider.delete(path)
+
+        assert e.value.message == 'Delete permission required'
+        assert e.value.code == 400
+    

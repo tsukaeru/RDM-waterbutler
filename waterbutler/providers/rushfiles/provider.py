@@ -1,3 +1,4 @@
+import json
 import asyncio
 import functools
 from urllib import parse
@@ -136,7 +137,35 @@ class RushFilesProvider(provider.BaseProvider):
                      path: RushFilesPath,
                      confirm_delete: int=0,
                      **kwargs) -> None:
-        raise NotImplementedError
+        if not path.identifier:
+            raise exceptions.NotFoundError(str(path))
+        if path.is_root:
+            raise exceptions.DeleteError(
+                'Delete permission required',
+                code=400
+            )
+
+        metadata = await self.metadata(path)
+        if not metadata.extra['deleted']:
+            raise exceptions.DeleteError(
+                'Delete permission required',
+                code=400
+            )
+        response = await self.make_request(
+                        'DELETE',
+                        self.build_url(str(self.share['id']), 'files', metadata.extra['internalName']),
+                        data=json.dumps({
+                            "TransmitId": "1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A",
+                            "ClientJournalEventType": 1,
+                            "DeviceId": "waterbutler "
+                        }),
+                        expects=(200, 404,),
+                        throws=exceptions.MetadataError,
+                    )
+        if response.status == 404:
+            raise exceptions.NotFoundError(str(path))
+        
+        return
 
     async def metadata(self,  # type: ignore
                        path: RushFilesPath,

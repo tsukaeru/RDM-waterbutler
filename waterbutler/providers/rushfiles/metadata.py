@@ -52,6 +52,10 @@ class RushFilesFileMetadata(BaseRushFilesMetadata, metadata.BaseFileMetadata):
     @property
     def modified(self) -> str:
         return self.raw['LastWriteTime']
+    
+    @property
+    def etag(self) -> str:
+        return self.raw['InternalName'] + '-' + str(self.raw['Tick'])
 
     @property
     def created_utc(self) -> str:

@@ -30,6 +30,7 @@ class TestMetadata:
         assert parsed.path == '/' + os.path.join(*[x.raw for x in path.parts])
         assert parsed.modified == item['LastWriteTime']
         assert parsed.size == item['EndOfFile']
+        assert parsed.etag == item['InternalName'] + '-' + str(item['Tick'])
         assert parsed.created_utc == utils.normalize_datetime(item['CreationTime'])
         assert parsed.content_type == None
         assert parsed.extra == {'UploadName': item['UploadName'],

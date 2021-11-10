@@ -63,7 +63,8 @@ class RushFilesFileMetadata(BaseRushFilesMetadata, metadata.BaseFileMetadata):
     
     @property
     def extra(self):
-        return {'internalName': self.raw['InternalName'],
+        return {'UploadName': self.raw['UploadName'],
+                'internalName': self.raw['InternalName'],
                 'shareId': self.raw['ShareId'],
                 'parentId': self.raw['ParrentId'],
                 'deleted': self.raw['Deleted']}

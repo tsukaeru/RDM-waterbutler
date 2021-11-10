@@ -32,7 +32,8 @@ class TestMetadata:
         assert parsed.size == item['EndOfFile']
         assert parsed.created_utc == utils.normalize_datetime(item['CreationTime'])
         assert parsed.content_type == None
-        assert parsed.extra == {'internalName': item['InternalName'],
+        assert parsed.extra == {'UploadName': item['UploadName'],
+                                'internalName': item['InternalName'],
                                 'shareId': item['ShareId'],
                                 'parentId': item['ParrentId'],
                                 'deleted': item['Deleted']}

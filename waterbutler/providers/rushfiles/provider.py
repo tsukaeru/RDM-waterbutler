@@ -197,9 +197,9 @@ class RushFilesProvider(provider.BaseProvider):
             ret = []
             for data in res['Data']:
                 if data['IsFile']:
-                    ret.append(RushFilesFileMetadata(data, path))
+                    ret.append(RushFilesFileMetadata(data, path.child(data['PublicName'], _id=data['InternalName'], folder=False))
                 else:
-                    ret.append(RushFilesFolderMetadata(data, path))
+                    ret.append(RushFilesFolderMetadata(data, path.child(data['PublicName'], _id=data['InternalName'], folder=False))
             return ret
 
     async def _file_metadata(self,

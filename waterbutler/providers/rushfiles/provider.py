@@ -1,4 +1,5 @@
 import json
+from uuid import uuid4
 import asyncio
 import functools
 from urllib import parse
@@ -153,14 +154,15 @@ class RushFilesProvider(provider.BaseProvider):
             )
         response = await self.make_request(
                         'DELETE',
-                        self.build_url(str(self.share['id']), 'files', metadata.extra['internalName']),
+                        self.build_url(str(self.share['id']), 'files', path.identifier),
                         data=json.dumps({
-                            "TransmitId": "1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A",
+                            "TransmitId": self.generate_uuid(),
                             "ClientJournalEventType": 1,
                             "DeviceId": "waterbutler "
                         }),
+                        headers={'Content-Type': 'application/json'},
                         expects=(200, 404,),
-                        throws=exceptions.MetadataError,
+                        throws=exceptions.DeleteError,
                     )
         if response.status == 404:
             raise exceptions.NotFoundError(str(path))
@@ -256,3 +258,7 @@ class RushFilesProvider(provider.BaseProvider):
             if child == data['PublicName']:
                 return data['InternalName'], i
         return None, None
+
+    def generate_uuid(self) -> str:
+        uuid = str(uuid4())
+        return uuid.replace('-', '')

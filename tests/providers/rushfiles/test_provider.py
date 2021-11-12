@@ -254,7 +254,7 @@ class TestDelete:
         path = RushFilesPath('/Tasks.xlsx', _ids=(provider.share['id'], item['InternalName']))
         url = provider.build_url(str(provider.share['id']), 'files', item['InternalName'])
         url_body = json.dumps({
-                        'TransmitId': '1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A',
+                        'TransmitId': provider.generate_uuid(),
                         'ClientJournalEventType': 1,
                         'DeviceId': 'waterbutler'
                     })
@@ -284,7 +284,7 @@ class TestDelete:
         path = RushFilesPath('/GakuNin RDM/', _ids=(provider.share['id'], item['InternalName']))
         url = provider.build_url(str(provider.share['id']), 'files', item['InternalName'])
         url_body = json.dumps({
-                        'TransmitId': '1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A',
+                        'TransmitId': provider.generate_uuid(),
                         'ClientJournalEventType': 1,
                         'DeviceId': 'waterbutler'
                     })
@@ -299,7 +299,7 @@ class TestDelete:
     @pytest.mark.aiohttpretty
     async def test_delete_folder_ng(self, provider, root_provider_fixtures):
         item = root_provider_fixtures['folder_metadata']
-        path = RushFilesPath('/GakuNin RDM/', _ids=(None, item['InternalName']))
+        path = RushFilesPath('/GakuNin RDM/', _ids=(provider.share['id'], item['InternalName']))
 
         with pytest.raises(exceptions.DeleteError) as e:
             await provider.delete(path)
@@ -317,14 +317,13 @@ class TestDelete:
         assert e.value.code == 404
         assert str(path) in e.value.message
 
-    @pytest.mark.asyncio
-    @pytest.mark.aiohttpretty
-    async def test_delete_root(self, provider, root_provider_fixtures):
-        path = RushFilesPath('/', _ids=(provider.share['id']))
+    # @pytest.mark.asyncio
+    # @pytest.mark.aiohttpretty
+    # async def test_delete_root(self, provider, root_provider_fixtures):
+    #     path = RushFilesPath('/', _ids=(provider.share['id']))
 
-        with pytest.raises(exceptions.DeleteError) as e:
-            await provider.delete(path)
+    #     with pytest.raises(exceptions.DeleteError) as e:
+    #         await provider.delete(path)
 
-        assert e.value.message == 'root cannot be deleted'
-        assert e.value.code == 400
-    
+    #     assert e.value.message == 'root cannot be deleted'
+    #     assert e.value.code == 400

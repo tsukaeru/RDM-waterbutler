@@ -249,14 +249,14 @@ class TestDelete:
 
     @pytest.mark.asyncio
     @pytest.mark.aiohttpretty
-    async def test_delete_file_ok(self, provider, root_provider_fixtures):
+    async def test_delete_file(self, provider, root_provider_fixtures):
         item = root_provider_fixtures['file_metadata_delete_ok']
         path = RushFilesPath('/Tasks.xlsx', _ids=(provider.share['id'], item['InternalName']))
         url = provider.build_url(str(provider.share['id']), 'files', item['InternalName'])
         url_body = json.dumps({
-                        'TransmitId': provider.generate_uuid(),
-                        'ClientJournalEventType': 1,
-                        'DeviceId': 'waterbutler'
+                        "Data":{
+                            "Deleted": True
+                        }   
                     })
 
         aiohttpretty.register_uri('DELETE', url, body=url_body, status=200)
@@ -264,18 +264,6 @@ class TestDelete:
         await provider.delete(path)
 
         assert aiohttpretty.has_call(method='DELETE', uri=url)
-
-    @pytest.mark.asyncio
-    @pytest.mark.aiohttpretty
-    async def test_delete_file_delete_ng(self, provider, root_provider_fixtures):
-        item = root_provider_fixtures['file_metadata']
-        path = RushFilesPath('/Tasks.xlsx', _ids=(provider.share['id'], item['InternalName']))
-        
-        with pytest.raises(exceptions.DeleteError) as e:
-            await provider.delete(path)
-
-        assert e.value.message == 'Delete permission required'
-        assert e.value.code == 403
 
     @pytest.mark.asyncio
     @pytest.mark.aiohttpretty
@@ -296,20 +284,8 @@ class TestDelete:
         assert aiohttpretty.has_call(method='DELETE', uri=url)
 
     @pytest.mark.asyncio
-    @pytest.mark.aiohttpretty
-    async def test_delete_folder_ng(self, provider, root_provider_fixtures):
-        item = root_provider_fixtures['folder_metadata']
-        path = RushFilesPath('/GakuNin RDM/', _ids=(provider.share['id'], item['InternalName']))
-
-        with pytest.raises(exceptions.DeleteError) as e:
-            await provider.delete(path)
-
-        assert e.value.message == 'Delete permission required'
-        assert e.value.code == 403
-
-    @pytest.mark.asyncio
-    async def test_must_not_be_none(self, provider):
-        path = RushFilesPath('/Goats')
+    async def test_delete_path_does_not_exist(self, provider):
+        path = RushFilesPath('/Gone')
 
         with pytest.raises(exceptions.NotFoundError) as e:
             await provider.delete(path)
@@ -317,13 +293,13 @@ class TestDelete:
         assert e.value.code == 404
         assert str(path) in e.value.message
 
-    # @pytest.mark.asyncio
-    # @pytest.mark.aiohttpretty
-    # async def test_delete_root(self, provider, root_provider_fixtures):
-    #     path = RushFilesPath('/', _ids=(provider.share['id']))
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_root(self, provider):
+        path = RushFilesPath('/', _ids=[provider.share['id']], folder=True)
 
-    #     with pytest.raises(exceptions.DeleteError) as e:
-    #         await provider.delete(path)
+        with pytest.raises(exceptions.DeleteError) as e:
+            await provider.delete(path)
 
-    #     assert e.value.message == 'root cannot be deleted'
-    #     assert e.value.code == 400
+        assert e.value.message == 'root cannot be deleted'
+        assert e.value.code == 400

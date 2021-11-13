@@ -136,7 +136,6 @@ class RushFilesProvider(provider.BaseProvider):
 
     async def delete(self,  # type: ignore
                      path: RushFilesPath,
-                     confirm_delete: int=0,
                      **kwargs) -> None:
         if not path.identifier:
             raise exceptions.NotFoundError(str(path))
@@ -146,12 +145,6 @@ class RushFilesProvider(provider.BaseProvider):
                 code=400
             )
 
-        metadata = await self.metadata(path)
-        if not metadata.extra['deleted']:
-            raise exceptions.DeleteError(
-                'Delete permission required',
-                code=403
-            )
         response = await self.make_request(
                         'DELETE',
                         self.build_url(str(self.share['id']), 'files', path.identifier),

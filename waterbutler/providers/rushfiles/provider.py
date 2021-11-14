@@ -1,7 +1,7 @@
 import json
-from uuid import uuid4
 import asyncio
 import functools
+from uuid import uuid4
 from urllib import parse
 from typing import List, Tuple, Union
 
@@ -149,7 +149,7 @@ class RushFilesProvider(provider.BaseProvider):
                         'DELETE',
                         self.build_url(str(self.share['id']), 'files', path.identifier),
                         data=json.dumps({
-                            "TransmitId": self.generate_uuid(),
+                            "TransmitId": self._generate_uuid(),
                             "ClientJournalEventType": 1,
                             "DeviceId": "waterbutler "
                         }),
@@ -252,6 +252,6 @@ class RushFilesProvider(provider.BaseProvider):
                 return data['InternalName'], i
         return None, None
 
-    def generate_uuid(self) -> str:
+    def _generate_uuid(self) -> str:
         uuid = str(uuid4())
         return uuid.replace('-', '')

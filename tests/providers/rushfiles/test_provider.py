@@ -21,9 +21,7 @@ from waterbutler.providers.rushfiles.metadata import (RushFilesRevision,
                                                         RushFilesFolderMetadata,
                                                         RushFilesFileRevisionMetadata)
 
-from tests.providers.rushfiles.fixtures import(
-    root_provider_fixtures,
-)
+from tests.providers.rushfiles.fixtures import(root_provider_fixtures)
 
 @pytest.fixture
 def auth():

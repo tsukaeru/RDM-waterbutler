@@ -301,3 +301,44 @@ class TestDelete:
 
         assert e.value.message == 'root cannot be deleted'
         assert e.value.code == 400
+
+class TestDownload:
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download(self, provider):
+        body = b'dearly-beloved'
+        path = WaterButlerPath('/lets-go-crazy',_ids=(provider.share['id'],'111'))
+        metadata = await self.metadata(path)
+        url = provider.build_url(str(provider.share['id']), 'virtualfiles', metadata.extra['uploadName'])
+
+        aiohttpretty.register_uri('GET', url, body=body)
+
+        result = await provider.download(path)
+        content = await result.read()
+
+        assert content == body
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download_path_is_dir(self, provider):
+        path = WaterButlerPath('/lets-go-dir/')
+        with pytest.raises(exceptions.DownloadError):
+            await provider.download(path)
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download_id_not_found(self, provider):
+        path = WaterButlerPath('/lets-go-crazy')
+        with pytest.raises(exceptions.DownloadError):
+            await provider.download(path)
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download_not_found(self, provider):
+        path = WaterButlerPath('/lets-go-crazy')
+        metadata = await self.metadata(path)
+        url = provider.build_url(str(provider.share['id']), 'virtualfiles', metadata.extra['uploadName'])
+        aiohttpretty.register_uri('GET', url, status=404)
+        with pytest.raises(exceptions.DownloadError):
+            await provider.download(path)

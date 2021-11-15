@@ -147,7 +147,7 @@ class RushFilesProvider(provider.BaseProvider):
 
         response = await self.make_request(
                         'DELETE',
-                        self.build_url(str(self.share['id']), 'files', path.identifier),
+                        self._build_filecache_url(str(self.share['id']), 'files', path.identifier),
                         data=json.dumps({
                             "TransmitId": self._generate_uuid(),
                             "ClientJournalEventType": 1,
@@ -197,6 +197,9 @@ class RushFilesProvider(provider.BaseProvider):
         # so probably there is also a way to to this with the API.
         # I will check and if there is, it may be more efficient then default behaviour.
         return super().zip(path, kwargs)
+    
+    def _build_filecache_url(self, *segments, **query):
+        return provider.build_url(pd_settings.BASE_FILECACHE_URL, *segments, **query)
 
     async def _folder_metadata(self,
                                path: RushFilesPath,

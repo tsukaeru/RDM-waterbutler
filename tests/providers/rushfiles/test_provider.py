@@ -250,7 +250,7 @@ class TestDelete:
     async def test_delete_file(self, provider, root_provider_fixtures):
         item = root_provider_fixtures['file_metadata_delete_ok']
         path = RushFilesPath('/Tasks.xlsx', _ids=(provider.share['id'], item['InternalName']))
-        url = provider.build_url(str(provider.share['id']), 'files', item['InternalName'])
+        url = provider._build_filecache_url(str(provider.share['id']), 'files', item['InternalName'])
         url_body = json.dumps({
                         "Data":{
                             "Deleted": True
@@ -268,9 +268,9 @@ class TestDelete:
     async def test_delete_folder_ok(self, provider, root_provider_fixtures):
         item = root_provider_fixtures['folder_metadata_delete_ok']
         path = RushFilesPath('/GakuNin RDM/', _ids=(provider.share['id'], item['InternalName']))
-        url = provider.build_url(str(provider.share['id']), 'files', item['InternalName'])
+        url = provider._build_filecache_url(str(provider.share['id']), 'files', item['InternalName'])
         url_body = json.dumps({
-                        'TransmitId': provider.generate_uuid(),
+                        'TransmitId': provider._generate_uuid(),
                         'ClientJournalEventType': 1,
                         'DeviceId': 'waterbutler'
                     })

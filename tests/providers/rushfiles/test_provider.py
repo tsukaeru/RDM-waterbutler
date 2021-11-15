@@ -306,12 +306,15 @@ class TestDownload:
 
     @pytest.mark.asyncio
     @pytest.mark.aiohttpretty
-    async def test_download(self, provider):
+    async def test_download(self, provider, root_provider_fixtures):
         body = b'dearly-beloved'
-        path = WaterButlerPath('/lets-go-crazy',_ids=(provider.share['id'],'111'))
-        metadata = await self.metadata(path)
-        url = provider.build_url(str(provider.share['id']), 'virtualfiles', metadata.extra['uploadName'])
+        path = WaterButlerPath('/Tasks.xlsx',_ids=(provider.share['id'],'0f04f33f715a4d5890307f114bf24e9c'))
+        metadata = root_provider_fixtures['file_metadata_resp']
+        
+        metadata_url = provider.build_url(str(provider.share['id']), 'virtualfiles', path.identifier)
+        aiohttpretty.register_uri('GET', metadata_url, body=json.dumps(metadata))
 
+        url = provider._build_filecache_url(str(provider.share['id']), 'virtualfiles', metadata['Data']['UploadName'])
         aiohttpretty.register_uri('GET', url, body=body)
 
         result = await provider.download(path)
@@ -335,10 +338,10 @@ class TestDownload:
 
     @pytest.mark.asyncio
     @pytest.mark.aiohttpretty
-    async def test_download_not_found(self, provider):
+    async def test_download_not_found(self, provider, root_provider_fixtures):
         path = WaterButlerPath('/lets-go-crazy')
-        metadata = await self.metadata(path)
-        url = provider.build_url(str(provider.share['id']), 'virtualfiles', metadata.extra['uploadName'])
+        metadata = root_provider_fixtures['file_metadata_resp']
+        url = provider.build_url(str(provider.share['id']), 'virtualfiles', metadata['Data']['UploadName'])
         aiohttpretty.register_uri('GET', url, status=404)
         with pytest.raises(exceptions.DownloadError):
             await provider.download(path)

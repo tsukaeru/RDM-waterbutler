@@ -125,7 +125,22 @@ class RushFilesProvider(provider.BaseProvider):
                        revision: str=None,
                        range: Tuple[int, int]=None,
                        **kwargs) -> streams.BaseStream:
-        raise NotImplementedError
+        if path.identifier is None:
+            raise exceptions.DownloadError('"{}" not found'.format(str(path)), code=404)
+
+        if path.is_dir:
+            raise exceptions.DownloadError('Path must be a file', code=404)
+
+        metadata = await self.metadata(path)
+            
+        resp = await self.make_request(
+            'GET',
+            self.build_url(str(self.share['id']), 'virtualfiles', metadata.extra['uploadName']),
+            range=range,
+            expects=(200, 206,),
+            throws=exceptions.DownloadError,
+        )
+        return streams.ResponseStreamReader(resp)
 
     async def upload(self,
                      stream,

@@ -171,25 +171,26 @@ class RushFilesProvider(provider.BaseProvider):
                 raise exceptions.FolderNamingConflict(path.name)
 
         now = self._get_time_for_sending()
+        request_body = json.dumps({
+            'RfVirtualFile': {
+                'ShareId': self.share['id'],
+                'ParrentId': path.parent.identifier,
+                'EndOfFile': 0,
+                'PublicName': path.name,
+                'CreationTime': now,
+                'LastAccessTime': now,
+                'LastWriteTime': now,
+                'Attributes': 16,
+            },
+            'TransmitId': str(self._generate_uuid),
+            'ClientJournalEventType': 0,
+            'DeviceId': 'waterbutler'
+        })
         
         async with self.request(
             'POST',
             self._build_filecache_url(str(self.share['id']), 'files'),
-            data=json.dumps({
-                'RfVirtualFile': {
-                    'ShareId': self.share['id'],
-                    'ParrentId': path.parent.identifier,
-                    'EndOfFile': 0,
-                    'PublicName': path.name,
-                    'CreationTime': now,
-                    'LastAccessTime': now,
-                    'LastWriteTime': now,
-                    'Attributes': 16,
-                },
-                'TransmitId': str(self._generate_uuid),
-                'ClientJournalEventType': 0,
-                'DeviceId': 'waterbutler'
-            }),
+            data=request_body,
             headers={'Content-Type': 'application/json'},
             expects=(200, ),
             throws=exceptions.CreateFolderError,

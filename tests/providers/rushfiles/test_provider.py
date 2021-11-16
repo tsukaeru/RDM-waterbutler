@@ -21,10 +21,7 @@ from waterbutler.providers.rushfiles.metadata import (RushFilesRevision,
                                                         RushFilesFolderMetadata,
                                                         RushFilesFileRevisionMetadata)
 
-# from tests.providers.rushfiles.fixtures import(error_fixtures,
-                                                #  sharing_fixtures,
-                                                #  revision_fixtures,
-                                                #  root_provider_fixtures)
+from tests.providers.rushfiles.fixtures import(root_provider_fixtures)
 
 @pytest.fixture
 def auth():
@@ -246,3 +243,15 @@ class TestValidatePath:
 
     #     result = await provider.revalidate_path(path, file_name, True)
     #     assert result.name in path.name
+
+class TestOperationsOrMisc:
+
+    def test_path_from_metadata(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['file_metadata']
+        src_path = RushFilesPath('/Tasks.xlsx', _ids=(provider.share['id'], item['InternalName']))
+
+        metadata = RushFilesFileMetadata(item, src_path)
+        child_path = provider.path_from_metadata(src_path.parent, metadata)
+
+        assert child_path.full_path == src_path.full_path
+        assert child_path == src_path

@@ -133,7 +133,35 @@ class RushFilesProvider(provider.BaseProvider):
                      path: WaterButlerPath,
                      *args,
                      **kwargs) -> Tuple[RushFilesFileMetadata, bool]:
-        raise NotImplementedError
+        created = not await self.exists(path)
+        now = self._get_time_for_sending()
+        request_body = json.dumps({
+            'RfVirtualFile': {
+                'ShareId': self.share['id'],
+                'ParrentId': path.parent.identifier,
+                'EndOfFile': stream.size,
+                'PublicName': path.name,
+                'CreationTime': now,
+                'LastAccessTime': now,
+                'LastWriteTime': now,
+                'Attributes': 16,
+            },
+            'TransmitId': str(self._generate_uuid),
+            'ClientJournalEventType': 0 if created else 3,
+            'DeviceId': 'waterbutler'
+        })
+        
+        response = await self.make_request(
+            'POST',
+            self._build_filecache_url(str(self.share['id']), 'files'),
+            data=request_body,
+            headers={'Content-Type': 'application/json'},
+            expects=(200, ),
+            throws=exceptions.UploadError,
+        )
+        data = await response.json()
+
+        return RushFilesFileMetadata(data['Data']), created
 
     async def delete(self,  # type: ignore
                      path: RushFilesPath,

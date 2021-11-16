@@ -134,6 +134,25 @@ class RushFilesProvider(provider.BaseProvider):
                      *args,
                      **kwargs) -> Tuple[RushFilesFileMetadata, bool]:
         created = not await self.exists(path)
+        if stream.size > 0:
+            if created:
+                data = await self._upload_request(stream, path, created)
+                response = await self.make_request(
+                    'PUT',
+                    data['Data']['url'],
+                    expects=(200, ),
+                    throws=exceptions.UploadError,
+                )
+                data = await response.json()
+            else:
+                data = await self._upload_request(stream, path, created)
+
+        else:
+            raise exceptions.UploadError('Path must be a file', code=404)
+            
+        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), created
+    
+    async def _upload_request(self, stream, path, created):
         now = self._get_time_for_sending()
         request_body = json.dumps({
             'RfVirtualFile': {
@@ -144,7 +163,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'CreationTime': now,
                 'LastAccessTime': now,
                 'LastWriteTime': now,
-                'Attributes': 16,
+                'Attributes': 128,
             },
             'TransmitId': str(self._generate_uuid),
             'ClientJournalEventType': 0 if created else 3,
@@ -152,7 +171,7 @@ class RushFilesProvider(provider.BaseProvider):
         })
         
         response = await self.make_request(
-            'POST',
+            'POST' if created else 'PUT',
             self._build_filecache_url(str(self.share['id']), 'files'),
             data=request_body,
             headers={'Content-Type': 'application/json'},
@@ -161,7 +180,7 @@ class RushFilesProvider(provider.BaseProvider):
         )
         data = await response.json()
 
-        return RushFilesFileMetadata(data['Data']), created
+        return data
 
     async def delete(self,  # type: ignore
                      path: RushFilesPath,

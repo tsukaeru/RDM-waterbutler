@@ -239,9 +239,9 @@ class RushFilesProvider(provider.BaseProvider):
             ret = []
             for data in res['Data']:
                 if data['IsFile']:
-                    ret.append(RushFilesFileMetadata(data, path))
+                    ret.append(RushFilesFileMetadata(data, path.child(data['PublicName'], _id=data['InternalName'], folder=False)))
                 else:
-                    ret.append(RushFilesFolderMetadata(data, path))
+                    ret.append(RushFilesFolderMetadata(data, path.child(data['PublicName'], _id=data['InternalName'], folder=True)))
             return ret
 
     async def _file_metadata(self,
@@ -269,7 +269,7 @@ class RushFilesProvider(provider.BaseProvider):
             if child == data['PublicName']:
                 return data['InternalName'], i
         return None, None
-
+      
     def _generate_uuid(self) -> str:
         uuid = str(uuid4())
         return uuid.replace('-', '')

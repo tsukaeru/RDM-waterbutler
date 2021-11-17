@@ -85,25 +85,21 @@ class RushFilesProvider(provider.BaseProvider):
                               base: WaterButlerPath,
                               name: str,
                               folder: bool=None) -> WaterButlerPath:
-        children_path_list = name.strip('/').split('/')
-        current_inter_id = self.share['id']
-        for i, child in enumerate(children_path_list):
-            response = await self.make_request(
-                'GET',
-                self.build_url(str(self.share['id']), 'virtualfiles', str(current_inter_id), 'children'),
-                expects=(200, 404,),
-                throws=exceptions.MetadataError,
-            )
-            if response.status == 404:
-                raise exceptions.NotFoundError(name)
-            res = await response.json()
-            current_inter_id, index = self._search_inter_id(res, child)
-            if not current_inter_id:
-                if i == len(children_path_list)-1:
-                    break
-                raise exceptions.NotFoundError(name)
+        response = await self.make_request(
+            'GET',
+            self.build_url(str(self.share['id']), 'virtualfiles', base.identifier, 'children'),
+            expects=(200, 404,),
+            throws=exceptions.MetadataError,
+        )
+        if response.status == 404:
+            raise exceptions.NotFoundError(name)
+        res = await response.json()
+        child_id, index = self._search_inter_id(res, name)
 
-        return base.child(name, _id=current_inter_id, folder=folder)
+        if child_id is None:
+            raise exceptions.NotFoundError(name)
+
+        return base.child(name, _id=child_id, folder=folder)
 
     def can_duplicate_names(self) -> bool:
         return False

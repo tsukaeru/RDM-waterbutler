@@ -20,7 +20,7 @@
     "LastWriteTime": "2021-10-25T04:22:56.9743276Z",
     "Attributes": 32,
     "Deleted": false
-    },
+  },
   "file_metadata_delete_ok":  {
     "UploadName": "141fd1d5a59c4f168b2b51f295ec1514",
     "User": "wklonowski@tsukaeru.net",
@@ -42,48 +42,48 @@
     "LastWriteTime": "2021-10-25T04:22:56.9743276Z",
     "Attributes": 32,
     "Deleted": true
-    },
-  "folder_metadata": {
-      "User": "wklonowski@tsukaeru.net",
-      "IsFile": false,
-      "FileLock": {
-        "IsLocked": false,
-        "LockTime": 0
-      },
-      "InternalName": "088e80f914f74290b15ef9cf5d63e06a",
-      "ShareId": "d0c475011bd24b6dae8a6f890f6b4a93",
-      "Tick": 1,
-      "SubShareIds": [],
-      "ShareTick": 48,
-      "ParrentId": "d0c475011bd24b6dae8a6f890f6b4a93",
-      "EndOfFile": 0,
-      "PublicName": "GakuNin RDM",
-      "CreationTime": "2021-10-18T02:33:14.9762501Z",
-      "LastAccessTime": "2021-10-18T02:33:14.9762501Z",
-      "LastWriteTime": "2021-10-18T02:33:14.9762501Z",
-      "Attributes": 16,
-      "Deleted": false
   },
-    "folder_metadata_delete_ok": {
-      "User": "wklonowski@tsukaeru.net",
-      "IsFile": false,
-      "FileLock": {
-        "IsLocked": false,
-        "LockTime": 0
-      },
-      "InternalName": "088e80f914f74290b15ef9cf5d63e06a",
-      "ShareId": "d0c475011bd24b6dae8a6f890f6b4a93",
-      "Tick": 1,
-      "SubShareIds": [],
-      "ShareTick": 48,
-      "ParrentId": "d0c475011bd24b6dae8a6f890f6b4a93",
-      "EndOfFile": 0,
-      "PublicName": "GakuNin RDM",
-      "CreationTime": "2021-10-18T02:33:14.9762501Z",
-      "LastAccessTime": "2021-10-18T02:33:14.9762501Z",
-      "LastWriteTime": "2021-10-18T02:33:14.9762501Z",
-      "Attributes": 16,
-      "Deleted": true
+  "folder_metadata": {
+    "User": "wklonowski@tsukaeru.net",
+    "IsFile": false,
+    "FileLock": {
+      "IsLocked": false,
+      "LockTime": 0
+    },
+    "InternalName": "088e80f914f74290b15ef9cf5d63e06a",
+    "ShareId": "d0c475011bd24b6dae8a6f890f6b4a93",
+    "Tick": 1,
+    "SubShareIds": [],
+    "ShareTick": 48,
+    "ParrentId": "d0c475011bd24b6dae8a6f890f6b4a93",
+    "EndOfFile": 0,
+    "PublicName": "GakuNin RDM",
+    "CreationTime": "2021-10-18T02:33:14.9762501Z",
+    "LastAccessTime": "2021-10-18T02:33:14.9762501Z",
+    "LastWriteTime": "2021-10-18T02:33:14.9762501Z",
+    "Attributes": 16,
+    "Deleted": false
+  },
+  "folder_metadata_delete_ok": {
+    "User": "wklonowski@tsukaeru.net",
+    "IsFile": false,
+    "FileLock": {
+      "IsLocked": false,
+      "LockTime": 0
+    },
+    "InternalName": "088e80f914f74290b15ef9cf5d63e06a",
+    "ShareId": "d0c475011bd24b6dae8a6f890f6b4a93",
+    "Tick": 1,
+    "SubShareIds": [],
+    "ShareTick": 48,
+    "ParrentId": "d0c475011bd24b6dae8a6f890f6b4a93",
+    "EndOfFile": 0,
+    "PublicName": "GakuNin RDM",
+    "CreationTime": "2021-10-18T02:33:14.9762501Z",
+    "LastAccessTime": "2021-10-18T02:33:14.9762501Z",
+    "LastWriteTime": "2021-10-18T02:33:14.9762501Z",
+    "Attributes": 16,
+    "Deleted": true
   },
   "file_metadata_resp":  {
     "Data": {
@@ -108,6 +108,7 @@
       "Attributes": 32,
       "Deleted": false
     }
+  },
   "create_folder_metadata": {
     "Code": 1,
     "Data": {

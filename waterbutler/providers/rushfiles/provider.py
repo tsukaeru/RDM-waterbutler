@@ -135,7 +135,7 @@ class RushFilesProvider(provider.BaseProvider):
             
         resp = await self.make_request(
             'GET',
-            self._build_filecache_url(str(self.share['id']), 'virtualfiles', metadata.extra['UploadName']),
+            self._build_filecache_url(str(self.share['id']), 'virtualfiles', metadata.upload_name),
             range=range,
             expects=(200, 206,),
             throws=exceptions.DownloadError,

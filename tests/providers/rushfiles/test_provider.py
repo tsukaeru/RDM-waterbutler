@@ -40,7 +40,8 @@ def settings():
         'share':{
             'name': 'rush',
             'id': '123',
-        }
+        },
+        'folder': '1234567890'
 }
 
 @pytest.fixture
@@ -224,6 +225,54 @@ class TestValidatePath:
         actual_path = await provider.revalidate_path(parent_path, subfile_name, False)
         assert actual_path == expected_path
 
+
         with pytest.raises(exceptions.NotFoundError) as exc:
             await provider.revalidate_path(parent_path, subfile_name, True)
-    
+
+class TestCreateFolder:
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_already_exists(self, provider):
+        path = WaterButlerPath('/hoge/', _ids=('doesnt', 'exist'))
+
+        with pytest.raises(exceptions.FolderNamingConflict) as e:
+            await provider.create_folder(path)
+
+        assert e.value.code == 409
+        assert e.value.message == ('Cannot create folder "hoge", because a file or folder '
+                                   'already exists with that name')
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_returns_metadata(self, provider, root_provider_fixtures):
+        path = WaterButlerPath('/hogeTest/', _ids=('38960c447d9643e395334f46aeeb4188', None))
+
+        aiohttpretty.register_json_uri('POST', provider._build_filecache_url(str(provider.share['id']), 'files'),
+                                       body=root_provider_fixtures['create_folder_metadata'])
+
+        resp = await provider.create_folder(path)
+
+        assert resp.kind == 'folder'
+        assert resp.name == 'hogeTest'
+        assert resp.path == '/hogeTest/'
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_raises_non_404(self, provider):
+        path = WaterButlerPath('/hoge/huga/bar/', _ids=('38960c447d9643e395334f46aeeb4188',
+                                                        'something', 'something', None))
+
+        url = provider._build_filecache_url(str(provider.share['id']), 'files')
+        aiohttpretty.register_json_uri('POST', url, status=418)
+
+        with pytest.raises(exceptions.CreateFolderError) as e:
+            await provider.create_folder(path)
+
+        assert e.value.code == 418
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_must_be_folder(self, provider, monkeypatch):
+        with pytest.raises(exceptions.CreateFolderError) as e:
+            await provider.create_folder(WaterButlerPath('/hoge.foo', _ids=('this', 'file')))

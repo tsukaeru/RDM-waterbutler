@@ -1,5 +1,6 @@
 import json
 import asyncio
+import datetime
 import functools
 from uuid import uuid4
 from urllib import parse
@@ -36,7 +37,7 @@ class RushFilesProvider(provider.BaseProvider):
     """
     NAME = 'rushfiles'
     # BASE_URL = pd_settings.BASE_URL
-    BASE_URL = "https://clientgateway.rushfiles.tsukaeru.team/api/shares/"
+    BASE_URL = 'https://clientgateway.rushfiles.tsukaeru.team/api/shares/'
 
     def __init__(self, auth: dict, credentials: dict, settings: dict) -> None:
         super().__init__(auth, credentials, settings)
@@ -200,7 +201,39 @@ class RushFilesProvider(provider.BaseProvider):
                             path: WaterButlerPath,
                             folder_precheck: bool=True,
                             **kwargs) -> RushFilesFolderMetadata:
-        raise NotImplementedError
+        RushFilesPath.validate_folder(path)
+
+        if folder_precheck:
+            if path.identifier:
+                raise exceptions.FolderNamingConflict(path.name)
+
+        now = self._get_time_for_sending()
+        request_body = json.dumps({
+            'RfVirtualFile': {
+                'ShareId': self.share['id'],
+                'ParrentId': path.parent.identifier,
+                'EndOfFile': 0,
+                'PublicName': path.name,
+                'CreationTime': now,
+                'LastAccessTime': now,
+                'LastWriteTime': now,
+                'Attributes': 16,
+            },
+            'TransmitId': str(self._generate_uuid),
+            'ClientJournalEventType': 0,
+            'DeviceId': 'waterbutler'
+        })
+        
+        async with self.request(
+            'POST',
+            self._build_filecache_url(str(self.share['id']), 'files'),
+            data=request_body,
+            headers={'Content-Type': 'application/json'},
+            expects=(200, ),
+            throws=exceptions.CreateFolderError,
+        ) as response:
+            resp = await response.json()
+            return RushFilesFolderMetadata(resp['Data']['ClientJournalEvent']['RfVirtualFile'], path)
 
     def path_from_metadata(self, parent_path, metadata) -> WaterButlerPath:
         #TODO Check parent implementation and see if it works.
@@ -269,7 +302,10 @@ class RushFilesProvider(provider.BaseProvider):
             if child == data['PublicName']:
                 return data['InternalName'], i
         return None, None
-      
+    
     def _generate_uuid(self) -> str:
         uuid = str(uuid4())
         return uuid.replace('-', '')
+
+    def _get_time_for_sending(self) -> str:
+        return str(datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f%z'))

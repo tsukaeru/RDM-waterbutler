@@ -164,8 +164,6 @@ class RushFilesProvider(provider.BaseProvider):
         raise NotImplementedError
 
     def path_from_metadata(self, parent_path, metadata) -> WaterButlerPath:
-        #TODO Check parent implementation and see if it works.
-        # Fix if not, remove override completely if it does.
         return parent_path.child(metadata.name, _id=metadata.extra['internalName'],
                                  folder=metadata.is_folder)
     

@@ -131,12 +131,16 @@ class RushFilesProvider(provider.BaseProvider):
     async def upload(self,
                      stream,
                      path: WaterButlerPath,
+                     conflict: str='replace',
                      *args,
                      **kwargs) -> Tuple[RushFilesFileMetadata, bool]:
-        created = not await self.exists(path)
+        path, exists = await self.handle_name_conflict(path, conflict=conflict)
+
         if stream.size > 0:
-            if created:
-                data = await self._upload_request(stream, path, created)
+            if conflict == 'replace':
+                data = await self._upload_request(stream, path, False)
+            elif conflict == 'keep':
+                data = await self._upload_request(stream, path, True)
                 response = await self.make_request(
                     'PUT',
                     data['Data']['url'],
@@ -144,13 +148,11 @@ class RushFilesProvider(provider.BaseProvider):
                     throws=exceptions.UploadError,
                 )
                 data = await response.json()
-            else:
-                data = await self._upload_request(stream, path, created)
 
         else:
-            raise exceptions.UploadError('Path must be a file', code=404)
+            raise exceptions.UploadError('The size of this file is 0', code=400)
             
-        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), created
+        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), not exists
     
     async def _upload_request(self, stream, path, created):
         now = self._get_time_for_sending()

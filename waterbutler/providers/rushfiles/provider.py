@@ -95,29 +95,81 @@ class RushFilesProvider(provider.BaseProvider):
         return {'authorization': 'Bearer {}'.format(self.token)}
 
     def can_intra_move(self, other: provider.BaseProvider, path: WaterButlerPath=None) -> bool:
-        #TODO check if really possible. Adjust accordingly
         return self == other
 
     def can_intra_copy(self, other: provider.BaseProvider, path=None) -> bool:
-        #TODO check if really possible. Adjust accordingly
-        return self == other
+        # rushfiles can copy a folder, but do not copy the files inside it.
+        return self == other and (path and path.is_file)
 
     async def intra_move(self,  # type: ignore
                          dest_provider: provider.BaseProvider,
                          src_path: WaterButlerPath,
                          dest_path: WaterButlerPath) -> Tuple[BaseRushFilesMetadata, bool]:
-        #TODO remove if can_intra_move is always false.
-        # Check parent implementation and see if it's optimal.
-        # Implement better solution if not, remove override completely if it is.
-        raise NotImplementedError
+
+        src_metadata = await self.metadata(src_path)                 
+        now = self._get_time_for_sending()
+        request_body = json.dumps({
+            'RfVirtualFile': {
+                'ShareId': self.share['id'],
+                'ParrentId': dest_path.parent.identifier,
+                'EndOfFile': src_metadata.size if src_path.is_file else 0,
+                'Tick': 0,
+                'PublicName': dest_path.name,
+                'CreationTime': now,
+                'LastAccessTime': now,
+                'LastWriteTime': now,
+                'Attributes': 32,
+            },
+            'TransmitId': str(self._generate_uuid),
+            'ClientJournalEventType': 16,
+            'DeviceId': 'waterbutler'
+        })
+        
+        async with self.request(
+            'PUT',
+            self._build_filecache_url(str(self.share['id']), 'files', src_path.identifier),
+            data=request_body,
+            headers={'Content-Type': 'application/json'},
+            expects=(200, ),
+            throws=exceptions.IntraMoveError,
+        ) as response:
+            resp = await response.json()
+            data = resp['Data']['ClientJournalEvent']['RfVirtualFile']
+        
+        dest_path.rename(data['PublicName'])
+        
+        if dest_path.is_dir:
+            metadata = RushFilesFolderMetadata(data, dest_path)
+            metadata._children = await self._folder_metadata(dest_path)
+            return metadata, True
+        
+        data['UploadName'] = src_metadata.upload_name
+        return RushFilesFileMetadata(data, dest_path), True
 
     async def intra_copy(self,
                          dest_provider: provider.BaseProvider,
                          src_path: WaterButlerPath,
                          dest_path: WaterButlerPath) -> Tuple[RushFilesFileMetadata, bool]:
-        #TODO remove if can_intra_copy is always false
-        raise NotImplementedError
 
+        # only file
+        async with self.request(
+            'POST',
+            self._build_filecache_url(str(self.share['id']), 'files', src_path.identifier, 'clone'),
+            data=json.dumps({
+                'DestinationParentId': dest_path.identifier,
+                'DeviceId': "waterbutler",
+                'DestinationShareId': dest_provider.share['id']
+            }),
+            headers={'Content-Type': 'application/json'},
+            expects=(201, ),
+            throws=exceptions.IntraCopyError,
+        ) as response:
+            resp = await response.json()
+            data = resp['Data']['ClientJournalEvent']['RfVirtualFile']
+        
+        dest_path.rename(data['PublicName'])
+        return RushFilesFileMetadata(data, dest_path), True
+        
     async def download(self,  # type: ignore
                        path: RushFilesPath,
                        revision: str=None,
@@ -206,7 +258,7 @@ class RushFilesProvider(provider.BaseProvider):
         return super().zip(path, kwargs)
     
     def _build_filecache_url(self, *segments, **query):
-        return provider.build_url('https://filecache01.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)
+        return provider.build_url(pd_settings.BASE_FILECACHE_URL, *segments, **query)
 
     def _build_clientgateway_url(self, *segments, **query):
         return provider.build_url('https://clientgateway.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)

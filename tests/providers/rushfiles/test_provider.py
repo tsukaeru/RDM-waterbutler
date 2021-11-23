@@ -245,6 +245,109 @@ class TestValidatePath:
 
     #     result = await provider.revalidate_path(path, file_name, True)
     #     assert result.name in path.name
+    
+class TestDelete:
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_file(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['file_metadata_delete_ok']
+        path = RushFilesPath('/Tasks.xlsx', _ids=(provider.share['id'], item['InternalName']))
+        url = provider._build_filecache_url(str(provider.share['id']), 'files', item['InternalName'])
+        url_body = json.dumps({
+                        "Data":{
+                            "Deleted": True
+                        }   
+                    })
+
+        aiohttpretty.register_uri('DELETE', url, body=url_body, status=200)
+
+        await provider.delete(path)
+
+        assert aiohttpretty.has_call(method='DELETE', uri=url)
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_folder_ok(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['folder_metadata_delete_ok']
+        path = RushFilesPath('/GakuNin RDM/', _ids=(provider.share['id'], item['InternalName']))
+        url = provider._build_filecache_url(str(provider.share['id']), 'files', item['InternalName'])
+        url_body = json.dumps({
+                        'TransmitId': provider._generate_uuid(),
+                        'ClientJournalEventType': 1,
+                        'DeviceId': 'waterbutler'
+                    })
+
+        aiohttpretty.register_uri('DELETE', url, body=url_body, status=200)
+
+        await provider.delete(path)
+
+        assert aiohttpretty.has_call(method='DELETE', uri=url)
+
+    @pytest.mark.asyncio
+    async def test_delete_path_does_not_exist(self, provider):
+        path = RushFilesPath('/Gone')
+
+        with pytest.raises(exceptions.NotFoundError) as e:
+            await provider.delete(path)
+
+        assert e.value.code == 404
+        assert str(path) in e.value.message
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_root(self, provider):
+        path = RushFilesPath('/', _ids=[provider.share['id']], folder=True)
+
+        with pytest.raises(exceptions.DeleteError) as e:
+            await provider.delete(path)
+
+        assert e.value.message == 'root cannot be deleted'
+        assert e.value.code == 400
+
+class TestDownload:
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download(self, provider, root_provider_fixtures):
+        body = b'dearly-beloved'
+        path = WaterButlerPath('/Tasks.xlsx',_ids=(provider.share['id'],'0f04f33f715a4d5890307f114bf24e9c'))
+        metadata = root_provider_fixtures['file_metadata_resp']
+        
+        metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', path.identifier)
+        aiohttpretty.register_uri('GET', metadata_url, body=json.dumps(metadata))
+
+        url = provider._build_filecache_url(str(provider.share['id']), 'virtualfiles', metadata['Data']['UploadName'])
+        aiohttpretty.register_uri('GET', url, body=body)
+
+        result = await provider.download(path)
+        content = await result.read()
+
+        assert content == body
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download_path_is_dir(self, provider):
+        path = WaterButlerPath('/lets-go-dir/')
+        with pytest.raises(exceptions.DownloadError):
+            await provider.download(path)
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download_id_not_found(self, provider):
+        path = WaterButlerPath('/lets-go-crazy')
+        with pytest.raises(exceptions.DownloadError):
+            await provider.download(path)
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download_not_found(self, provider, root_provider_fixtures):
+        path = WaterButlerPath('/lets-go-crazy')
+        metadata = root_provider_fixtures['file_metadata_resp']
+        url = provider.build_url(str(provider.share['id']), 'virtualfiles', metadata['Data']['UploadName'])
+        aiohttpretty.register_uri('GET', url, status=404)
+        with pytest.raises(exceptions.DownloadError):
+            await provider.download(path)
 
 class TestCreateFolder:
 

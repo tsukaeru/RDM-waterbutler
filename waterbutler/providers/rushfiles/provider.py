@@ -123,7 +123,22 @@ class RushFilesProvider(provider.BaseProvider):
                        revision: str=None,
                        range: Tuple[int, int]=None,
                        **kwargs) -> streams.BaseStream:
-        raise NotImplementedError
+        if path.identifier is None:
+            raise exceptions.DownloadError('"{}" not found'.format(str(path)), code=404)
+
+        if path.is_dir:
+            raise exceptions.DownloadError('Path must be a file', code=404)
+
+        metadata = await self.metadata(path)
+            
+        resp = await self.make_request(
+            'GET',
+            self._build_filecache_url(str(self.share['id']), 'virtualfiles', metadata.upload_name),
+            range=range,
+            expects=(200, 206,),
+            throws=exceptions.DownloadError,
+        )
+        return streams.ResponseStreamReader(resp)
 
     async def upload(self,
                      stream,
@@ -134,9 +149,31 @@ class RushFilesProvider(provider.BaseProvider):
 
     async def delete(self,  # type: ignore
                      path: RushFilesPath,
-                     confirm_delete: int=0,
                      **kwargs) -> None:
-        raise NotImplementedError
+        if not path.identifier:
+            raise exceptions.NotFoundError(str(path))
+        if path.is_root:
+            raise exceptions.DeleteError(
+                'root cannot be deleted',
+                code=400
+            )
+
+        response = await self.make_request(
+                        'DELETE',
+                        self._build_filecache_url(str(self.share['id']), 'files', path.identifier),
+                        data=json.dumps({
+                            "TransmitId": self._generate_uuid(),
+                            "ClientJournalEventType": 1,
+                            "DeviceId": "waterbutler "
+                        }),
+                        headers={'Content-Type': 'application/json'},
+                        expects=(200, 404,),
+                        throws=exceptions.DeleteError,
+                    )
+        if response.status == 404:
+            raise exceptions.NotFoundError(str(path))
+        
+        return
 
     async def metadata(self,  # type: ignore
                        path: RushFilesPath,

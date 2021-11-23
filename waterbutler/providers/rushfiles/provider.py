@@ -99,11 +99,9 @@ class RushFilesProvider(provider.BaseProvider):
         res = await response.json()
         child_id, index = self._search_inter_id(res, name)
 
-        if res['Data'][index]['IsFile'] == folder:
-            raise exceptions.NotFoundError(name)
-
-        if child_id is None:
-            raise exceptions.NotFoundError(name)
+        if not child_id is None:
+            if res['Data'][index]['IsFile'] == folder:
+                raise exceptions.NotFoundError(name)
 
         return base.child(name, _id=child_id, folder=folder)
 

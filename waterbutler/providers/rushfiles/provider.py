@@ -85,7 +85,22 @@ class RushFilesProvider(provider.BaseProvider):
                               base: WaterButlerPath,
                               name: str,
                               folder: bool=None) -> WaterButlerPath:
-        raise NotImplementedError # Or user super if appropriate
+        response = await self.make_request(
+            'GET',
+            self.build_url(str(self.share['id']), 'virtualfiles', base.identifier, 'children'),
+            expects=(200, 404,),
+            throws=exceptions.MetadataError,
+        )
+        if response.status == 404:
+            raise exceptions.NotFoundError(name)
+        res = await response.json()
+        child_id, index = self._search_inter_id(res, name)
+
+        if not child_id is None:
+            if res['Data'][index]['IsFile'] == folder:
+                raise exceptions.NotFoundError(name)
+
+        return base.child(name, _id=child_id, folder=folder)
 
     def can_duplicate_names(self) -> bool:
         return False
@@ -258,7 +273,7 @@ class RushFilesProvider(provider.BaseProvider):
         return super().zip(path, kwargs)
     
     def _build_filecache_url(self, *segments, **query):
-        return provider.build_url(pd_settings.BASE_FILECACHE_URL, *segments, **query)
+        return provider.build_url('https://filecache01.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)
 
     def _build_clientgateway_url(self, *segments, **query):
         return provider.build_url('https://clientgateway.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)

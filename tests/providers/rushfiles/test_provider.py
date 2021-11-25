@@ -70,7 +70,8 @@ def file_metadata_response():
             "LastAccessTime": "2021-11-14T02:34:18.575Z",
             "LastWriteTime": "2021-11-18T15:44:36.4329227Z",
             "PublicName": "hoge.txt",
-            "IsFile": True
+            "IsFile": True,
+            "Attributes": 32
         }
     }
 
@@ -98,7 +99,8 @@ def folder_metadata_response():
             "LastAccessTime": "2021-11-14T02:34:18.575Z",
             "LastWriteTime": "2021-11-18T15:44:36.4329227Z",
             "PublicName": "foo",
-            "IsFile": False
+            "IsFile": False,
+            "Attributes": 16
         }
     }
 
@@ -315,15 +317,17 @@ class TestIntraMove:
     async def test_intra_move_file(self, provider, root_provider_fixtures, intra_fixtures, file_metadata_response):
         item = file_metadata_response['Data']
         src_path = WaterButlerPath('/hoge.txt', _ids=(provider, item['InternalName']))
-        dest_path = WaterButlerPath('/super/hoge.txt', _ids=(provider, item['InternalName']))
+        dest_path = WaterButlerPath('/super/hoge.txt', _ids=(provider, item['InternalName'], item['InternalName']))
 
         metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
         intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        del_url = provider._build_filecache_url(str(provider.share['id']), 'files', dest_path.identifier)
         aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
         aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_move_file_resp_metadata'])
+        aiohttpretty.register_json_uri('DELETE', del_url)
 
-        result = await provider.intra_move(provider, src_path, dest_path)
-        expected = (RushFilesFileMetadata(item, dest_path), True)
+        result, created = await provider.intra_move(provider, src_path, dest_path)
+        expected= RushFilesFileMetadata(item, dest_path)
 
         assert result == expected
     
@@ -337,15 +341,16 @@ class TestIntraMove:
         metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
         children_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'], 'children')
         intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        del_url = provider._build_filecache_url(str(provider.share['id']), 'files', dest_path.identifier)
         aiohttpretty.register_json_uri('GET', metadata_url, body=folder_metadata_response)
         aiohttpretty.register_json_uri('GET', children_url, body=intra_fixtures['intra_folder_children_metadata'])
         aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_move_folder_resp_metadata'])
+        aiohttpretty.register_json_uri('DELETE', del_url)
 
-        expected_folder = RushFilesFolderMetadata(item, dest_path)
-        expected_folder._children = await provider._folder_metadata(dest_path)
-        expected = (expected_folder, True)
+        expected = RushFilesFolderMetadata(item, dest_path)
+        expected.children = await provider._folder_metadata(dest_path)
 
-        result = await provider.intra_move(provider, src_path, dest_path)
+        result, created = await provider.intra_move(provider, src_path, dest_path)
 
         assert result == expected
     
@@ -354,19 +359,21 @@ class TestIntraMove:
     async def test_intra_move_duplicated_file(self, provider, root_provider_fixtures, intra_fixtures, file_metadata_response):
         item = file_metadata_response['Data']
         src_path = WaterButlerPath('/hoge.txt', _ids=(provider, item['InternalName']))
-        dest_path = WaterButlerPath('/super/hoge.txt', _ids=(provider, item['InternalName']))
+        dest_path = WaterButlerPath('/super/hoge.txt', _ids=(provider, item['InternalName'], item['InternalName']))
 
         metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
         intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        del_url = provider._build_filecache_url(str(provider.share['id']), 'files', dest_path.identifier)
         aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
         aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_duplicated_file_resp_metadata'])
+        aiohttpretty.register_json_uri('DELETE', del_url)
 
-        result = await provider.intra_move(provider, src_path, dest_path)
+        result, created = await provider.intra_move(provider, src_path, dest_path)
 
         duplicated_path =  WaterButlerPath('/super/hoge(duplicated 2021-11-18T15:44:36.4329227Z).txt', 
                                             _ids=(provider, item['InternalName']))
         duplicated_item = intra_fixtures['intra_duplicated_file_resp_metadata']['Data']['ClientJournalEvent']['RfVirtualFile']
-        expected = (RushFilesFileMetadata(duplicated_item, duplicated_path), True)
+        expected= RushFilesFileMetadata(duplicated_item, duplicated_path)
 
         assert result == expected
     
@@ -380,19 +387,20 @@ class TestIntraMove:
         metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
         children_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'], 'children')
         intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        del_url = provider._build_filecache_url(str(provider.share['id']), 'files', dest_path.identifier)
         aiohttpretty.register_json_uri('GET', metadata_url, body=folder_metadata_response)
         aiohttpretty.register_json_uri('GET', children_url, body=intra_fixtures['intra_folder_children_metadata'])
         aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_duplicated_folder_resp_metadata'])
+        aiohttpretty.register_json_uri('DELETE', del_url)
 
         duplicated_path =  WaterButlerPath('/super/foo(duplicated 2021-11-18T15:44:36.4329227Z)/', 
                                             _ids=(provider, item['InternalName'], item['InternalName']))
         duplicated_item = intra_fixtures['intra_duplicated_folder_resp_metadata']['Data']['ClientJournalEvent']['RfVirtualFile']
 
-        expected_folder = RushFilesFolderMetadata(duplicated_item, duplicated_path)
-        expected_folder._children = await provider._folder_metadata(duplicated_path)
-        expected = (expected_folder, True)
+        expected = RushFilesFolderMetadata(duplicated_item, duplicated_path)
+        expected.children = await provider._folder_metadata(duplicated_path)
 
-        result = await provider.intra_move(provider, src_path, dest_path)
+        result, created = await provider.intra_move(provider, src_path, dest_path)
 
         assert result == expected
 
@@ -410,8 +418,8 @@ class TestIntraCopy:
         aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
         aiohttpretty.register_json_uri('POST', intra_copy_url, body=intra_fixtures['intra_copy_file_resp_metadata'], status=201)
 
-        result = await provider.intra_copy(provider, src_path, dest_path)
-        expected = (RushFilesFileMetadata(item, dest_path), True)
+        result, created = await provider.intra_copy(provider, src_path, dest_path)
+        expected = RushFilesFileMetadata(item, dest_path)
 
         assert result == expected
     
@@ -427,11 +435,11 @@ class TestIntraCopy:
         aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
         aiohttpretty.register_json_uri('POST', intra_copy_url, body=intra_fixtures['intra_duplicated_file_resp_metadata'], status=201)
 
-        result = await provider.intra_copy(provider, src_path, dest_path)
+        result, created = await provider.intra_copy(provider, src_path, dest_path)
 
         duplicated_path =  WaterButlerPath('/super/hoge(duplicated 2021-11-18T15:44:36.4329227Z).txt', 
                                             _ids=(provider, intra_fixtures['intra_duplicated_file_resp_metadata']['Data']['ClientJournalEvent']['RfVirtualFile']['InternalName']))
         duplicated_item = intra_fixtures['intra_duplicated_file_resp_metadata']['Data']['ClientJournalEvent']['RfVirtualFile']
-        expected = (RushFilesFileMetadata(duplicated_item, duplicated_path), True)
+        expected = RushFilesFileMetadata(duplicated_item, duplicated_path)
 
         assert result == expected

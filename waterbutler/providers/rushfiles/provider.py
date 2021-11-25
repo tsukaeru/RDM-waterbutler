@@ -120,20 +120,22 @@ class RushFilesProvider(provider.BaseProvider):
                          dest_provider: provider.BaseProvider,
                          src_path: WaterButlerPath,
                          dest_path: WaterButlerPath) -> Tuple[BaseRushFilesMetadata, bool]:
+        if dest_path.identifier:
+            await dest_provider.delete(dest_path)
 
-        src_metadata = await self.metadata(src_path)                 
+        src_metadata = await self._file_metadata(src_path, raw=True)                 
         now = self._get_time_for_sending()
         request_body = json.dumps({
             'RfVirtualFile': {
                 'ShareId': self.share['id'],
                 'ParrentId': dest_path.parent.identifier,
-                'EndOfFile': src_metadata.size if src_path.is_file else 0,
+                'EndOfFile': src_metadata['EndOfFile'] if src_path.is_file else 0,
                 'Tick': 0,
                 'PublicName': dest_path.name,
-                'CreationTime': now,
-                'LastAccessTime': now,
-                'LastWriteTime': now,
-                'Attributes': 32,
+                'CreationTime': src_metadata['CreationTime'],
+                'LastAccessTime': src_metadata['LastAccessTime'],
+                'LastWriteTime': src_metadata['LastWriteTime'],
+                'Attributes': src_metadata['Attributes'],
             },
             'TransmitId': str(self._generate_uuid),
             'ClientJournalEventType': 16,
@@ -151,20 +153,24 @@ class RushFilesProvider(provider.BaseProvider):
             resp = await response.json()
             data = resp['Data']['ClientJournalEvent']['RfVirtualFile']
         
+        created = dest_path.identifier is None
+        dest_path.parts[-1]._id = data['InternalName']
         dest_path.rename(data['PublicName'])
         
         if dest_path.is_dir:
             metadata = RushFilesFolderMetadata(data, dest_path)
-            metadata._children = await self._folder_metadata(dest_path)
-            return metadata, True
+            metadata.children = await self._folder_metadata(dest_path)
+            return metadata, created
         
-        data['UploadName'] = src_metadata.upload_name
-        return RushFilesFileMetadata(data, dest_path), True
+        data['UploadName'] = src_metadata['UploadName']
+        return RushFilesFileMetadata(data, dest_path), created
 
     async def intra_copy(self,
                          dest_provider: provider.BaseProvider,
                          src_path: WaterButlerPath,
                          dest_path: WaterButlerPath) -> Tuple[RushFilesFileMetadata, bool]:
+        if dest_path.identifier:
+            await dest_provider.delete(dest_path)
 
         # only file
         async with self.request(
@@ -183,7 +189,7 @@ class RushFilesProvider(provider.BaseProvider):
             data = resp['Data']['ClientJournalEvent']['RfVirtualFile']
         
         dest_path.rename(data['PublicName'])
-        return RushFilesFileMetadata(data, dest_path), True
+        return RushFilesFileMetadata(data, dest_path), dest_path.identifier is None
         
     async def download(self,  # type: ignore
                        path: RushFilesPath,

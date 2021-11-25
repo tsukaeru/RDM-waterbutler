@@ -312,7 +312,7 @@ class TestDownload:
         metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', path.identifier)
         aiohttpretty.register_uri('GET', metadata_url, body=json.dumps(metadata))
 
-        url = provider._build_filecache_url(str(provider.share['id']), 'virtualfiles', metadata['Data']['UploadName'])
+        url = provider._build_filecache_url(str(provider.share['id']), 'files', metadata['Data']['UploadName'])
         aiohttpretty.register_uri('GET', url, body=body)
 
         result = await provider.download(path)

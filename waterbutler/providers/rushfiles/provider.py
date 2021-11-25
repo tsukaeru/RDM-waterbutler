@@ -133,7 +133,7 @@ class RushFilesProvider(provider.BaseProvider):
             
         resp = await self.make_request(
             'GET',
-            self._build_filecache_url(str(self.share['id']), 'virtualfiles', metadata.upload_name),
+            self._build_filecache_url(str(self.share['id']), 'files', metadata.upload_name),
             range=range,
             expects=(200, 206,),
             throws=exceptions.DownloadError,
@@ -167,12 +167,11 @@ class RushFilesProvider(provider.BaseProvider):
                             "DeviceId": "waterbutler "
                         }),
                         headers={'Content-Type': 'application/json'},
-                        expects=(200, 404,),
+                        expects=(200, 400, 404,),
                         throws=exceptions.DeleteError,
                     )
-        if response.status == 404:
+        if response.status == 400 and response.status == 404:
             raise exceptions.NotFoundError(str(path))
-        
         return
 
     async def metadata(self,  # type: ignore

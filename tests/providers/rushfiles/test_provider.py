@@ -256,7 +256,11 @@ class TestDelete:
         url = provider._build_filecache_url(str(provider.share['id']), 'files', item['InternalName'])
         url_body = json.dumps({
                         "Data":{
-                            "Deleted": True
+                            "ClientJournalEvent": {
+                                "RfVirtualFile": {
+                                    "Deleted": True
+                                }
+                            }
                         }   
                     })
 
@@ -273,9 +277,17 @@ class TestDelete:
         path = RushFilesPath('/GakuNin RDM/', _ids=(provider.share['id'], item['InternalName']))
         url = provider._build_filecache_url(str(provider.share['id']), 'files', item['InternalName'])
         url_body = json.dumps({
-                        'TransmitId': provider._generate_uuid(),
-                        'ClientJournalEventType': 1,
-                        'DeviceId': 'waterbutler'
+                        "Data":{
+                            "ClientJournalEvent": {
+                                'TransmitId': provider._generate_uuid(),
+                                'ClientJournalEventType': 1,
+                                "RfVirtualFile": {
+                                    "FileLock": {
+                                        'DeviceId': 'waterbutler'
+                                    }
+                                }
+                            }
+                        }   
                     })
 
         aiohttpretty.register_uri('DELETE', url, body=url_body, status=200)
@@ -336,16 +348,6 @@ class TestDownload:
     @pytest.mark.aiohttpretty
     async def test_download_id_not_found(self, provider):
         path = WaterButlerPath('/lets-go-crazy')
-        with pytest.raises(exceptions.DownloadError):
-            await provider.download(path)
-
-    @pytest.mark.asyncio
-    @pytest.mark.aiohttpretty
-    async def test_download_not_found(self, provider, root_provider_fixtures):
-        path = WaterButlerPath('/lets-go-crazy')
-        metadata = root_provider_fixtures['file_metadata_resp']
-        url = provider.build_url(str(provider.share['id']), 'virtualfiles', metadata['Data']['UploadName'])
-        aiohttpretty.register_uri('GET', url, status=404)
         with pytest.raises(exceptions.DownloadError):
             await provider.download(path)
 

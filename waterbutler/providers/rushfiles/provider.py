@@ -185,7 +185,7 @@ class RushFilesProvider(provider.BaseProvider):
                         expects=(200, 400, 404,),
                         throws=exceptions.DeleteError,
                     )
-        if response.status == 400 and response.status == 404:
+        if response.status == 400 or response.status == 404:
             raise exceptions.NotFoundError(str(path))
         return
 

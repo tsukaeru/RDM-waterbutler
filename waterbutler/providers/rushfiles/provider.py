@@ -162,7 +162,6 @@ class RushFilesProvider(provider.BaseProvider):
             metadata.children = await self._folder_metadata(dest_path)
             return metadata, created
         
-        data['UploadName'] = src_metadata['UploadName']
         return RushFilesFileMetadata(data, dest_path), created
 
     async def intra_copy(self,
@@ -187,9 +186,11 @@ class RushFilesProvider(provider.BaseProvider):
         ) as response:
             resp = await response.json()
             data = resp['Data']['ClientJournalEvent']['RfVirtualFile']
-        
-        dest_path.rename(data['PublicName'])
-        return RushFilesFileMetadata(data, dest_path), dest_path.identifier is None
+
+        dest_path.parts[-1]._id = data['InternalName']
+        move_src = dest_path
+        move_src.rename(data['PublicName'])        
+        return await self.intra_move(dest_provider, move_src, dest_path)
         
     async def download(self,  # type: ignore
                        path: RushFilesPath,

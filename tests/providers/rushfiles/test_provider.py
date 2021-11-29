@@ -62,7 +62,7 @@ def file_metadata_response():
         'Data': {
             "ShareId": "d0c475011bd24b6dae8a6f890f6b4a93",
             "InternalName": "0f04f33f715a4d5890307f114bf24e9c",
-            "UploadName": "0dcdjeia3n29f819f0389f02910380f8",
+            "UploadName": "3897409d06204fefbdd6da1a70581654",
             "Tick": 5,
             "ParrentId": "d0c475011bd24b6dae8a6f890f6b4a93",
             "EndOfFile": 5,
@@ -91,7 +91,6 @@ def folder_metadata_response():
         'Data': {
             "ShareId": "d0c475011bd24b6dae8a6f890f6b4a93",
             "InternalName": "088e80f914f74290b15ef9cf5d63e06a",
-            "UploadName": "0dcdjeia3n29f819f0389f02910380f8",
             "Tick": 5,
             "ParrentId": "d0c475011bd24b6dae8a6f890f6b4a93",
             "EndOfFile": 0,
@@ -415,8 +414,10 @@ class TestIntraCopy:
 
         metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
         intra_copy_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier, 'clone')
+        intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
         aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
         aiohttpretty.register_json_uri('POST', intra_copy_url, body=intra_fixtures['intra_copy_file_resp_metadata'], status=201)
+        aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_move_file_resp_metadata'])
 
         result, created = await provider.intra_copy(provider, src_path, dest_path)
         expected = RushFilesFileMetadata(item, dest_path)
@@ -432,8 +433,10 @@ class TestIntraCopy:
 
         metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
         intra_copy_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier, 'clone')
+        intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
         aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
         aiohttpretty.register_json_uri('POST', intra_copy_url, body=intra_fixtures['intra_duplicated_file_resp_metadata'], status=201)
+        aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_duplicated_file_resp_metadata'])
 
         result, created = await provider.intra_copy(provider, src_path, dest_path)
 

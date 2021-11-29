@@ -87,7 +87,7 @@ class RushFilesProvider(provider.BaseProvider):
                               folder: bool=None) -> WaterButlerPath:
         response = await self.make_request(
             'GET',
-            self.build_url(str(self.share['id']), 'virtualfiles', base.identifier, 'children'),
+            self._build_clientgateway_url(str(self.share['id']), 'virtualfiles', base.identifier, 'children'),
             expects=(200, 404,),
             throws=exceptions.MetadataError,
         )

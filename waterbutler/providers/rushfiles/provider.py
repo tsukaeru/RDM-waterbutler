@@ -187,10 +187,13 @@ class RushFilesProvider(provider.BaseProvider):
             resp = await response.json()
             data = resp['Data']['ClientJournalEvent']['RfVirtualFile']
 
-        dest_path.parts[-1]._id = data['InternalName']
-        move_src = dest_path
-        move_src.rename(data['PublicName'])        
-        return await self.intra_move(dest_provider, move_src, dest_path)
+        clone_result_path = dest_path.parent.child(data['PublicName'], _id=data['InternalName'])
+        if clone_result_path == dest_path:
+            # Cloned file is exactly the same as destination path. Can return right away.
+            return RushFilesFileMetadata(data, clone_result_path ), True
+        else:
+            # Destination does not match (cloned file should be renamed or destination existed and we have a duplicate).
+            return await self.intra_move(dest_provider, clone_result_path , dest_path)
         
     async def download(self,  # type: ignore
                        path: RushFilesPath,

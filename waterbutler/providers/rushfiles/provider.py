@@ -131,28 +131,24 @@ class RushFilesProvider(provider.BaseProvider):
     async def upload(self,
                      stream,
                      path: WaterButlerPath,
-                     conflict: str='replace',
                      *args,
                      **kwargs) -> Tuple[RushFilesFileMetadata, bool]:
-        path, exists = await self.handle_name_conflict(path, conflict=conflict)
+        created = not await self.exists(path)
 
         if stream.size > 0:
-            if conflict == 'replace':
-                data = await self._upload_request(stream, path, False)
-            elif conflict == 'keep':
-                data = await self._upload_request(stream, path, True)
-                response = await self.make_request(
-                    'PUT',
-                    data['Data']['url'],
-                    expects=(200, ),
-                    throws=exceptions.UploadError,
-                )
-                data = await response.json()
-
+            data = await self._upload_request(stream, path, created)
+            response = await self.make_request(
+                'PUT',
+                data['Data']['url'],
+                data=stream,
+                expects=(200, ),
+                throws=exceptions.UploadError,
+            )
+            data = await response.json()
         else:
             raise exceptions.UploadError('The size of this file is 0', code=400)
             
-        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), not exists
+        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), created
     
     async def _upload_request(self, stream, path, created):
         now = self._get_time_for_sending()
@@ -162,7 +158,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'ParrentId': path.parent.identifier,
                 'EndOfFile': stream.size,
                 'PublicName': path.name,
-                'CreationTime': now,
+                'CreationTime': now if created else path.created_utc,
                 'LastAccessTime': now,
                 'LastWriteTime': now,
                 'Attributes': 128,
@@ -172,9 +168,14 @@ class RushFilesProvider(provider.BaseProvider):
             'DeviceId': 'waterbutler'
         })
         
+        if created:
+            upload_url =  self._build_filecache_url(str(self.share['id']), 'files')
+        else:
+            upload_url =  self._build_filecache_url(str(self.share['id']), 'files', path.extra['InternalName'])
+
         response = await self.make_request(
             'POST' if created else 'PUT',
-            self._build_filecache_url(str(self.share['id']), 'files'),
+            upload_url,
             data=request_body,
             headers={'Content-Type': 'application/json'},
             expects=(200, ),

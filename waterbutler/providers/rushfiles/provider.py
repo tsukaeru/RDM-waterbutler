@@ -170,13 +170,14 @@ class RushFilesProvider(provider.BaseProvider):
                          dest_path: WaterButlerPath) -> Tuple[RushFilesFileMetadata, bool]:
         if dest_path.identifier:
             await dest_provider.delete(dest_path)
+            dest_path.identifier = None
 
         # only file
         async with self.request(
             'POST',
             self._build_filecache_url(str(self.share['id']), 'files', src_path.identifier, 'clone'),
             data=json.dumps({
-                'DestinationParentId': dest_path.identifier,
+                'DestinationParentId': dest_path.parent.identifier,
                 'DeviceId': "waterbutler",
                 'DestinationShareId': dest_provider.share['id']
             }),

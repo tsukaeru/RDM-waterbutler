@@ -230,8 +230,12 @@ class RushFilesProvider(provider.BaseProvider):
             response = await self.make_request(
                 'PUT',
                 data['Data']['url'],
+                headers={
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': '0-' + stream.size + '/*'
+                },
                 data=stream,
-                expects=(200, ),
+                expects=(200,201,202,),
                 throws=exceptions.UploadError,
             )
             data = await response.json()
@@ -261,14 +265,14 @@ class RushFilesProvider(provider.BaseProvider):
         if created:
             upload_url =  self._build_filecache_url(str(self.share['id']), 'files')
         else:
-            upload_url =  self._build_filecache_url(str(self.share['id']), 'files', path.extra['InternalName'])
+            upload_url =  self._build_filecache_url(str(self.share['id']), 'files', path.extra['internalName'])
 
         response = await self.make_request(
             'POST' if created else 'PUT',
             upload_url,
             data=request_body,
             headers={'Content-Type': 'application/json'},
-            expects=(200, ),
+            expects=(200,202,),
             throws=exceptions.UploadError,
         )
         data = await response.json()

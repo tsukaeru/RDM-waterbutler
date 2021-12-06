@@ -223,7 +223,61 @@ class RushFilesProvider(provider.BaseProvider):
                      path: WaterButlerPath,
                      *args,
                      **kwargs) -> Tuple[RushFilesFileMetadata, bool]:
-        raise NotImplementedError
+        created = not await self.exists(path)
+
+        if stream.size > 0:
+            data = await self._upload_request(stream, path, created)
+            response = await self.make_request(
+                'PUT',
+                data['Data']['url'],
+                headers={
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': '0-' + stream.size + '/*'
+                },
+                data=stream,
+                expects=(200,201,202,),
+                throws=exceptions.UploadError,
+            )
+            data = await response.json()
+        else:
+            data = await self._upload_request(stream, path, created)
+            
+        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), created
+    
+    async def _upload_request(self, stream, path, created):
+        now = self._get_time_for_sending()
+        request_body = json.dumps({
+            'RfVirtualFile': {
+                'ShareId': self.share['id'],
+                'ParrentId': path.parent.identifier,
+                'EndOfFile': stream.size,
+                'PublicName': path.name,
+                'CreationTime': now if created else path.created_utc,
+                'LastAccessTime': now,
+                'LastWriteTime': now,
+                'Attributes': 128,
+            },
+            'TransmitId': str(self._generate_uuid),
+            'ClientJournalEventType': 0 if created else 3,
+            'DeviceId': 'waterbutler'
+        })
+        
+        if created:
+            upload_url =  self._build_filecache_url(str(self.share['id']), 'files')
+        else:
+            upload_url =  self._build_filecache_url(str(self.share['id']), 'files', path.extra['internalName'])
+
+        response = await self.make_request(
+            'POST' if created else 'PUT',
+            upload_url,
+            data=request_body,
+            headers={'Content-Type': 'application/json'},
+            expects=(200,202,),
+            throws=exceptions.UploadError,
+        )
+        data = await response.json()
+
+        return data
 
     async def delete(self,  # type: ignore
                      path: RushFilesPath,

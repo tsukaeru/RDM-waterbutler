@@ -33,7 +33,7 @@ class RushFilesFolderMetadata(BaseRushFilesMetadata, metadata.BaseFolderMetadata
         return {'internalName': self.raw['InternalName'],
                 'shareId': self.raw['ShareId'],
                 'parentId': self.raw['ParrentId'],
-                'deleted': self.raw['Deleted']}
+        }
 
 
 class RushFilesFileMetadata(BaseRushFilesMetadata, metadata.BaseFileMetadata):
@@ -64,14 +64,17 @@ class RushFilesFileMetadata(BaseRushFilesMetadata, metadata.BaseFileMetadata):
     @property
     def content_type(self) -> typing.Union[str, None]:
         return None
+
+    @property
+    def upload_name(self) -> str:
+        return self.raw['UploadName']
     
     @property
     def extra(self):
-        return {'UploadName': self.raw['UploadName'],
-                'internalName': self.raw['InternalName'],
+        return {'internalName': self.raw['InternalName'],
                 'shareId': self.raw['ShareId'],
                 'parentId': self.raw['ParrentId'],
-                'deleted': self.raw['Deleted']}
+        }
 
 
 # TODO Remove if not necessary

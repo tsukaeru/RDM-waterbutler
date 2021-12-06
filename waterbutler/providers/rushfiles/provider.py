@@ -36,12 +36,9 @@ class RushFilesProvider(provider.BaseProvider):
     """Provider for RushFiles cloud storage service.
     """
     NAME = 'rushfiles'
-    # BASE_URL = pd_settings.BASE_URL
-    BASE_URL = 'https://clientgateway.rushfiles.tsukaeru.team/api/shares/'
 
     def __init__(self, auth: dict, credentials: dict, settings: dict) -> None:
         super().__init__(auth, credentials, settings)
-        #TODO Match with RDM-osf.io/addons/rushfiles/models.py:RushFilesProvider::serialize_waterbutler_*
         self.token = self.credentials['token']
         self.share = self.settings['share']
 
@@ -65,7 +62,7 @@ class RushFilesProvider(provider.BaseProvider):
         for i, child in enumerate(children_path_list):
             response = await self.make_request(
                 'GET',
-                self.build_url(str(self.share['id']), 'virtualfiles', str(current_inter_id), 'children'),
+                self._build_clientgateway_url(str(self.share['id']), 'virtualfiles', str(current_inter_id), 'children'),
                 expects=(200, 404,),
                 throws=exceptions.MetadataError,
             )
@@ -88,7 +85,22 @@ class RushFilesProvider(provider.BaseProvider):
                               base: WaterButlerPath,
                               name: str,
                               folder: bool=None) -> WaterButlerPath:
-        raise NotImplementedError # Or user super if appropriate
+        response = await self.make_request(
+            'GET',
+            self._build_clientgateway_url(str(self.share['id']), 'virtualfiles', base.identifier, 'children'),
+            expects=(200, 404,),
+            throws=exceptions.MetadataError,
+        )
+        if response.status == 404:
+            raise exceptions.NotFoundError(name)
+        res = await response.json()
+        child_id, index = self._search_inter_id(res, name)
+
+        if not child_id is None:
+            if res['Data'][index]['IsFile'] == folder:
+                raise exceptions.NotFoundError(name)
+
+        return base.child(name, _id=child_id, folder=folder)
 
     def can_duplicate_names(self) -> bool:
         return False
@@ -98,35 +110,113 @@ class RushFilesProvider(provider.BaseProvider):
         return {'authorization': 'Bearer {}'.format(self.token)}
 
     def can_intra_move(self, other: provider.BaseProvider, path: WaterButlerPath=None) -> bool:
-        #TODO check if really possible. Adjust accordingly
         return self == other
 
     def can_intra_copy(self, other: provider.BaseProvider, path=None) -> bool:
-        #TODO check if really possible. Adjust accordingly
-        return self == other
+        # rushfiles can copy a folder, but do not copy the files inside it.
+        return self == other and (path and path.is_file)
 
     async def intra_move(self,  # type: ignore
                          dest_provider: provider.BaseProvider,
                          src_path: WaterButlerPath,
                          dest_path: WaterButlerPath) -> Tuple[BaseRushFilesMetadata, bool]:
-        #TODO remove if can_intra_move is always false.
-        # Check parent implementation and see if it's optimal.
-        # Implement better solution if not, remove override completely if it is.
-        raise NotImplementedError
+        if dest_path.identifier:
+            await dest_provider.delete(dest_path)
+
+        src_metadata = await self._file_metadata(src_path, raw=True)                 
+        now = self._get_time_for_sending()
+        request_body = json.dumps({
+            'RfVirtualFile': {
+                'ShareId': self.share['id'],
+                'ParrentId': dest_path.parent.identifier,
+                'EndOfFile': src_metadata['EndOfFile'] if src_path.is_file else 0,
+                'Tick': 0,
+                'PublicName': dest_path.name,
+                'CreationTime': src_metadata['CreationTime'],
+                'LastAccessTime': src_metadata['LastAccessTime'],
+                'LastWriteTime': src_metadata['LastWriteTime'],
+                'Attributes': src_metadata['Attributes'],
+            },
+            'TransmitId': str(self._generate_uuid),
+            'ClientJournalEventType': 16,
+            'DeviceId': 'waterbutler'
+        })
+        
+        async with self.request(
+            'PUT',
+            self._build_filecache_url(str(self.share['id']), 'files', src_path.identifier),
+            data=request_body,
+            headers={'Content-Type': 'application/json'},
+            expects=(200, ),
+            throws=exceptions.IntraMoveError,
+        ) as response:
+            resp = await response.json()
+            data = resp['Data']['ClientJournalEvent']['RfVirtualFile']
+        
+        created = dest_path.identifier is None
+        dest_path.parts[-1]._id = data['InternalName']
+        dest_path.rename(data['PublicName'])
+        
+        if dest_path.is_dir:
+            metadata = RushFilesFolderMetadata(data, dest_path)
+            metadata.children = await self._folder_metadata(dest_path)
+            return metadata, created
+        
+        return RushFilesFileMetadata(data, dest_path), created
 
     async def intra_copy(self,
                          dest_provider: provider.BaseProvider,
                          src_path: WaterButlerPath,
                          dest_path: WaterButlerPath) -> Tuple[RushFilesFileMetadata, bool]:
-        #TODO remove if can_intra_copy is always false
-        raise NotImplementedError
+        if dest_path.identifier:
+            await dest_provider.delete(dest_path)
+            dest_path.identifier = None
 
+        # only file
+        async with self.request(
+            'POST',
+            self._build_filecache_url(str(self.share['id']), 'files', src_path.identifier, 'clone'),
+            data=json.dumps({
+                'DestinationParentId': dest_path.parent.identifier,
+                'DeviceId': "waterbutler",
+                'DestinationShareId': dest_provider.share['id']
+            }),
+            headers={'Content-Type': 'application/json'},
+            expects=(201, ),
+            throws=exceptions.IntraCopyError,
+        ) as response:
+            resp = await response.json()
+            data = resp['Data']['ClientJournalEvent']['RfVirtualFile']
+
+        clone_result_path = dest_path.parent.child(data['PublicName'], _id=data['InternalName'])
+        if clone_result_path == dest_path:
+            # Cloned file is exactly the same as destination path. Can return right away.
+            return RushFilesFileMetadata(data, clone_result_path ), True
+        else:
+            # Destination does not match (cloned file should be renamed or destination existed and we have a duplicate).
+            return await self.intra_move(dest_provider, clone_result_path , dest_path)
+        
     async def download(self,  # type: ignore
                        path: RushFilesPath,
                        revision: str=None,
                        range: Tuple[int, int]=None,
                        **kwargs) -> streams.BaseStream:
-        raise NotImplementedError
+        if path.identifier is None:
+            raise exceptions.DownloadError('"{}" not found'.format(str(path)), code=404)
+
+        if path.is_dir:
+            raise exceptions.DownloadError('Path must be a file', code=404)
+
+        metadata = await self.metadata(path)
+            
+        resp = await self.make_request(
+            'GET',
+            self._build_filecache_url(str(self.share['id']), 'files', metadata.upload_name),
+            range=range,
+            expects=(200, 206,),
+            throws=exceptions.DownloadError,
+        )
+        return streams.ResponseStreamReader(resp)
 
     async def upload(self,
                      stream,
@@ -187,9 +277,30 @@ class RushFilesProvider(provider.BaseProvider):
 
     async def delete(self,  # type: ignore
                      path: RushFilesPath,
-                     confirm_delete: int=0,
                      **kwargs) -> None:
-        raise NotImplementedError
+        if not path.identifier:
+            raise exceptions.NotFoundError(str(path))
+        if path.is_root:
+            raise exceptions.DeleteError(
+                'root cannot be deleted',
+                code=400
+            )
+
+        response = await self.make_request(
+                        'DELETE',
+                        self._build_filecache_url(str(self.share['id']), 'files', path.identifier),
+                        data=json.dumps({
+                            "TransmitId": self._generate_uuid(),
+                            "ClientJournalEventType": 1,
+                            "DeviceId": "waterbutler "
+                        }),
+                        headers={'Content-Type': 'application/json'},
+                        expects=(200, 400, 404,),
+                        throws=exceptions.DeleteError,
+                    )
+        if response.status == 400 or response.status == 404:
+            raise exceptions.NotFoundError(str(path))
+        return
 
     async def metadata(self,  # type: ignore
                        path: RushFilesPath,
@@ -249,9 +360,8 @@ class RushFilesProvider(provider.BaseProvider):
             return RushFilesFolderMetadata(resp['Data']['ClientJournalEvent']['RfVirtualFile'], path)
 
     def path_from_metadata(self, parent_path, metadata) -> WaterButlerPath:
-        #TODO Check parent implementation and see if it works.
-        # Fix if not, remove override completely if it does.
-        return super().path_from_metadata(parent_path, metadata)
+        return parent_path.child(metadata.name, _id=metadata.extra['internalName'],
+                                 folder=metadata.is_folder)
     
     async def zip(self, path: WaterButlerPath, **kwargs) -> asyncio.StreamReader:
         #TODO RushFiles allows downloading entire folders from web client
@@ -260,7 +370,10 @@ class RushFilesProvider(provider.BaseProvider):
         return super().zip(path, kwargs)
     
     def _build_filecache_url(self, *segments, **query):
-        return provider.build_url(pd_settings.BASE_FILECACHE_URL, *segments, **query)
+        return provider.build_url('https://filecache01.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)
+
+    def _build_clientgateway_url(self, *segments, **query):
+        return provider.build_url('https://clientgateway.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)
 
     async def _folder_metadata(self,
                                path: RushFilesPath,
@@ -270,7 +383,7 @@ class RushFilesProvider(provider.BaseProvider):
 
         response = await self.make_request(
             'GET',
-            self.build_url(str(share_id), 'virtualfiles', inter_id, 'children'),
+            self._build_clientgateway_url(str(share_id), 'virtualfiles', inter_id, 'children'),
             expects=(200, 404,),
             throws=exceptions.MetadataError,
         )
@@ -285,9 +398,9 @@ class RushFilesProvider(provider.BaseProvider):
             ret = []
             for data in res['Data']:
                 if data['IsFile']:
-                    ret.append(RushFilesFileMetadata(data, path))
+                    ret.append(RushFilesFileMetadata(data, path.child(data['PublicName'], _id=data['InternalName'], folder=False)))
                 else:
-                    ret.append(RushFilesFolderMetadata(data, path))
+                    ret.append(RushFilesFolderMetadata(data, path.child(data['PublicName'], _id=data['InternalName'], folder=True)))
             return ret
 
     async def _file_metadata(self,
@@ -296,7 +409,7 @@ class RushFilesProvider(provider.BaseProvider):
                              raw: bool=False) -> Union[dict, BaseRushFilesMetadata]:
         response = await self.make_request(
             'GET',
-            self.build_url(str(self.share['id']), 'virtualfiles', path.identifier),
+            self._build_clientgateway_url(str(self.share['id']), 'virtualfiles', path.identifier),
             expects=(200, 404,),
             throws=exceptions.MetadataError,
         )

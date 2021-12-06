@@ -33,11 +33,11 @@ class TestMetadata:
         assert parsed.etag == item['InternalName'] + '-' + str(item['Tick'])
         assert parsed.created_utc == utils.normalize_datetime(item['CreationTime'])
         assert parsed.content_type == None
-        assert parsed.extra == {'UploadName': item['UploadName'],
-                                'internalName': item['InternalName'],
+        assert parsed.upload_name == item['UploadName']
+        assert parsed.extra == {'internalName': item['InternalName'],
                                 'shareId': item['ShareId'],
                                 'parentId': item['ParrentId'],
-                                'deleted': item['Deleted']}
+                            }
     
     def test_folder_metadata(self, root_provider_fixtures):
         item = root_provider_fixtures['folder_metadata']
@@ -50,4 +50,4 @@ class TestMetadata:
         assert parsed.extra == {'internalName': item['InternalName'],
                                 'shareId': item['ShareId'],
                                 'parentId': item['ParrentId'],
-                                'deleted': item['Deleted']}
+                            }

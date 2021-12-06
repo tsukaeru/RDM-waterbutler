@@ -21,7 +21,8 @@ from waterbutler.providers.rushfiles.metadata import (RushFilesRevision,
                                                         RushFilesFolderMetadata,
                                                         RushFilesFileRevisionMetadata)
 
-from tests.providers.rushfiles.fixtures import(root_provider_fixtures)
+from tests.providers.rushfiles.fixtures import(root_provider_fixtures,
+                                                intra_fixtures)
 
 @pytest.fixture
 def auth():
@@ -39,7 +40,8 @@ def settings():
     return {
         'share':{
             'name': 'rush',
-            'id': '123',
+            'domain': 'rushfiles.com',
+            'id': 'd0c475011bd24b6dae8a6f890f6b4a93',
         },
         'folder': '1234567890'
 }
@@ -58,8 +60,18 @@ def search_for_file_response():
 def file_metadata_response():
     return {
         'Data': {
-            'ShareId': '0f04f33f715a4d5890307f114bf24e9c',
-            'IsFile': True
+            "ShareId": "d0c475011bd24b6dae8a6f890f6b4a93",
+            "InternalName": "0f04f33f715a4d5890307f114bf24e9c",
+            "UploadName": "3897409d06204fefbdd6da1a70581654",
+            "Tick": 5,
+            "ParrentId": "d0c475011bd24b6dae8a6f890f6b4a93",
+            "EndOfFile": 5,
+            "CreationTime": "2021-11-18T15:44:36.4329227Z",
+            "LastAccessTime": "2021-11-14T02:34:18.575Z",
+            "LastWriteTime": "2021-11-18T15:44:36.4329227Z",
+            "PublicName": "hoge.txt",
+            "IsFile": True,
+            "Attributes": 32
         }
     }
 
@@ -77,8 +89,17 @@ def search_for_folder_response():
 def folder_metadata_response():
     return {
         'Data': {
-            'ShareId': '088e80f914f74290b15ef9cf5d63e06a',
-            'IsFile': False
+            "ShareId": "d0c475011bd24b6dae8a6f890f6b4a93",
+            "InternalName": "088e80f914f74290b15ef9cf5d63e06a",
+            "Tick": 5,
+            "ParrentId": "d0c475011bd24b6dae8a6f890f6b4a93",
+            "EndOfFile": 0,
+            "CreationTime": "2021-11-18T15:44:36.4329227Z",
+            "LastAccessTime": "2021-11-14T02:34:18.575Z",
+            "LastWriteTime": "2021-11-18T15:44:36.4329227Z",
+            "PublicName": "foo",
+            "IsFile": False,
+            "Attributes": 16
         }
     }
 
@@ -96,11 +117,11 @@ class TestValidatePath:
         file_name = 'files.txt'
         file_inter_id = '0f04f33f715a4d5890307f114bf24e9c' # Tasks.xlsx
 
-        children_of_root_url = provider.build_url(
+        children_of_root_url = provider._build_clientgateway_url(
             str(provider.share['id']), 'virtualfiles', str(provider.share['id']), 'children')
-        good_url = provider.build_url(
+        good_url = provider._build_clientgateway_url(
             str(provider.share['id']), 'virtualfiles', file_inter_id)
-        bad_url = provider.build_url(
+        bad_url = provider._build_clientgateway_url(
             str(provider.share['id']), 'virtualfiles', file_inter_id, 'children')
 
         aiohttpretty.register_json_uri('GET', children_of_root_url, body=search_for_file_response, status=200)
@@ -127,11 +148,11 @@ class TestValidatePath:
         folder_name = 'fooFolder'
         folder_inter_id = '088e80f914f74290b15ef9cf5d63e06a'
 
-        children_of_root_url = provider.build_url(
+        children_of_root_url = provider._build_clientgateway_url(
             str(provider.share['id']), 'virtualfiles', str(provider.share['id']), 'children')
-        good_url = provider.build_url(
+        good_url = provider._build_clientgateway_url(
             str(provider.share['id']), 'virtualfiles', folder_inter_id)
-        bad_url = provider.build_url(
+        bad_url = provider._build_clientgateway_url(
             str(provider.share['id']), 'virtualfiles', folder_inter_id, 'children')
 
         aiohttpretty.register_json_uri('GET', children_of_root_url, body=search_for_folder_response, status=200)
@@ -161,90 +182,177 @@ class TestValidatePath:
         expected = RushFilesPath(path, folder=True)
 
         assert result == expected
+        
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_revalidate_path_file(self, provider, root_provider_fixtures):
+        file_name = 'Tasks.xlsx'
+        revalidate_path_metadata = root_provider_fixtures['file_metadata']
+        file_id = revalidate_path_metadata['InternalName']
+        root_id = str(provider.share['id'])
 
-    # @pytest.mark.asyncio
-    # @pytest.mark.aiohttpretty
-    # async def test_revalidate_path_file(self, provider, root_provider_fixtures):
-    #     file_name = '/Gear1.stl'
-    #     revalidate_path_metadata = root_provider_fixtures['revalidate_path_file_metadata_1']
-    #     file_id = revalidate_path_metadata['items'][0]['id']
-    #     path = RushFilesPath(file_name, _ids=['0', file_id])
+        parent_path = RushFilesPath('/', _ids=[root_id])
+        expected_path = RushFilesPath('/{}'.format(file_name), _ids=[root_id, file_id])
 
-    #     parts = [[parse.unquote(x), True] for x in file_name.strip('/').split('/')]
-    #     parts[-1][1] = False
+        parent_url = provider.build_url(root_id, 'virtualfiles', root_id, 'children')
+        aiohttpretty.register_json_uri('GET', parent_url,
+                                       body=root_provider_fixtures['children_metadata'], status=200)
 
-    #     current_part = parts.pop(0)
-    #     part_name, part_is_folder = current_part[0], current_part[1]
-    #     name, ext = os.path.splitext(part_name)
-    #     query = _build_title_search_query(provider, file_name.strip('/'), False)
+        actual_path = await provider.revalidate_path(parent_path, file_name, False)
+        assert actual_path == expected_path
 
-    #     url = provider.build_url('files', file_id, 'children', q=query, fields='items(id)')
-    #     aiohttpretty.register_json_uri('GET', url, body=revalidate_path_metadata)
+        with pytest.raises(exceptions.NotFoundError) as exc:
+            await provider.revalidate_path(parent_path, file_name, True)
 
-    #     url = provider.build_url('files', file_id, fields='id,title,mimeType')
-    #     aiohttpretty.register_json_uri('GET', url,
-    #                                    body=root_provider_fixtures['revalidate_path_file_metadata_2'])
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_revalidate_path_folder(self, provider, root_provider_fixtures):
+        folder_name = 'Test'
+        revalidate_path_metadata = root_provider_fixtures['folder_metadata']
+        folder_id = revalidate_path_metadata['InternalName']
+        root_id = str(provider.share['id'])
 
-    #     result = await provider.revalidate_path(path, file_name)
+        parent_path = RushFilesPath('/', _ids=[root_id])
+        expected_path = RushFilesPath('/{}/'.format(folder_name), _ids=[root_id, folder_id])
 
-    #     assert result.name in path.name
+        parent_url = provider.build_url(root_id, 'virtualfiles', root_id, 'children')
+        aiohttpretty.register_json_uri('GET', parent_url,
+                                       body=root_provider_fixtures['children_metadata'], status=200)
 
-    # @pytest.mark.asyncio
-    # @pytest.mark.aiohttpretty
-    # async def test_revalidate_path_file_gdoc(self, provider, root_provider_fixtures):
-    #     file_name = '/Gear1.gdoc'
-    #     file_id = root_provider_fixtures['revalidate_path_file_metadata_1']['items'][0]['id']
-    #     path = RushFilesPath(file_name, _ids=['0', file_id])
+        actual_path = await provider.revalidate_path(parent_path, folder_name, True)
+        assert actual_path == expected_path
 
-    #     parts = [[parse.unquote(x), True] for x in file_name.strip('/').split('/')]
-    #     parts[-1][1] = False
+        with pytest.raises(exceptions.NotFoundError) as exc:
+            await provider.revalidate_path(parent_path, folder_name, False)
+    
+    @pytest.mark.aiohttpretty
+    @pytest.mark.asyncio
+    async def test_revalidate_path_subfile(self, provider, root_provider_fixtures):
+        root_id = str(provider.share['id'])
+        parent_id = root_provider_fixtures['folder_metadata']['InternalName']
+        subfile_id = root_provider_fixtures['file_metadata']['InternalName']
 
-    #     current_part = parts.pop(0)
-    #     part_name, part_is_folder = current_part[0], current_part[1]
-    #     name, ext = os.path.splitext(part_name)
-    #     gd_ext = drive_utils.get_mimetype_from_ext(ext)
-    #     query = "title = '{}' " \
-    #             "and trashed = false " \
-    #             "and mimeType = '{}'".format(clean_query(name), gd_ext)
+        parent_name = 'Test'
+        subfile_name = 'Tasks.xlsx'
 
-    #     url = provider.build_url('files', file_id, 'children', q=query, fields='items(id)')
-    #     aiohttpretty.register_json_uri('GET', url,
-    #                                    body=root_provider_fixtures['revalidate_path_file_metadata_1'])
+        parent_path = RushFilesPath('/{}/'.format(parent_name), _ids=[root_id, parent_id])
+        expected_path = RushFilesPath('/{}/{}'.format(parent_name, subfile_name),
+                                     _ids=[root_id, parent_id, subfile_id])
 
-    #     url = provider.build_url('files', file_id, fields='id,title,mimeType')
-    #     aiohttpretty.register_json_uri('GET', url,
-    #                                    body=root_provider_fixtures['revalidate_path_gdoc_file_metadata'])
+        parent_url = provider.build_url(root_id, 'virtualfiles', parent_id, 'children')
+        aiohttpretty.register_json_uri('GET', parent_url,
+                                       body=root_provider_fixtures['children_metadata'], status=200)
 
-    #     result = await provider.revalidate_path(path, file_name)
+        actual_path = await provider.revalidate_path(parent_path, subfile_name, False)
+        assert actual_path == expected_path
 
-    #     assert result.name in path.name
+        with pytest.raises(exceptions.NotFoundError) as exc:
+            await provider.revalidate_path(parent_path, subfile_name, True)
+    
+class TestDelete:
 
-    # @pytest.mark.asyncio
-    # @pytest.mark.aiohttpretty
-    # async def test_revalidate_path_folder(self, provider, root_provider_fixtures):
-    #     file_name = "/inception folder yo/"
-    #     file_id = root_provider_fixtures['revalidate_path_folder_metadata_1']['items'][0]['id']
-    #     path = RushFilesPath(file_name, _ids=['0', file_id])
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_file(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['file_metadata_delete_ok']
+        path = RushFilesPath('/Tasks.xlsx', _ids=(provider.share['id'], item['InternalName']))
+        url = provider._build_filecache_url(str(provider.share['id']), 'files', item['InternalName'])
+        url_body = json.dumps({
+                        "Data":{
+                            "ClientJournalEvent": {
+                                "RfVirtualFile": {
+                                    "Deleted": True
+                                }
+                            }
+                        }   
+                    })
 
-    #     parts = [[parse.unquote(x), True] for x in file_name.strip('/').split('/')]
-    #     parts[-1][1] = False
+        aiohttpretty.register_uri('DELETE', url, body=url_body, status=200)
 
-    #     current_part = parts.pop(0)
-    #     part_name, part_is_folder = current_part[0], current_part[1]
-    #     name, ext = os.path.splitext(part_name)
-    #     query = _build_title_search_query(provider, file_name.strip('/') + '/', True)
+        await provider.delete(path)
 
-    #     folder_one_url = provider.build_url('files', file_id, 'children', q=query, fields='items(id)')
-    #     aiohttpretty.register_json_uri('GET', folder_one_url,
-    #                                    body=root_provider_fixtures['revalidate_path_folder_metadata_1'])
+        assert aiohttpretty.has_call(method='DELETE', uri=url)
 
-    #     folder_two_url = provider.build_url('files', file_id, fields='id,title,mimeType')
-    #     aiohttpretty.register_json_uri('GET', folder_two_url,
-    #                                    body=root_provider_fixtures['revalidate_path_folder_metadata_2'])
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_folder_ok(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['folder_metadata_delete_ok']
+        path = RushFilesPath('/GakuNin RDM/', _ids=(provider.share['id'], item['InternalName']))
+        url = provider._build_filecache_url(str(provider.share['id']), 'files', item['InternalName'])
+        url_body = json.dumps({
+                        "Data":{
+                            "ClientJournalEvent": {
+                                'TransmitId': provider._generate_uuid(),
+                                'ClientJournalEventType': 1,
+                                "RfVirtualFile": {
+                                    "FileLock": {
+                                        'DeviceId': 'waterbutler'
+                                    }
+                                }
+                            }
+                        }   
+                    })
 
-    #     result = await provider.revalidate_path(path, file_name, True)
-    #     assert result.name in path.name
+        aiohttpretty.register_uri('DELETE', url, body=url_body, status=200)
 
+        await provider.delete(path)
+
+        assert aiohttpretty.has_call(method='DELETE', uri=url)
+
+    @pytest.mark.asyncio
+    async def test_delete_path_does_not_exist(self, provider):
+        path = RushFilesPath('/Gone')
+
+        with pytest.raises(exceptions.NotFoundError) as e:
+            await provider.delete(path)
+
+        assert e.value.code == 404
+        assert str(path) in e.value.message
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_delete_root(self, provider):
+        path = RushFilesPath('/', _ids=[provider.share['id']], folder=True)
+
+        with pytest.raises(exceptions.DeleteError) as e:
+            await provider.delete(path)
+
+        assert e.value.message == 'root cannot be deleted'
+        assert e.value.code == 400
+
+class TestDownload:
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download(self, provider, root_provider_fixtures):
+        body = b'dearly-beloved'
+        path = WaterButlerPath('/Tasks.xlsx',_ids=(provider.share['id'],'0f04f33f715a4d5890307f114bf24e9c'))
+        metadata = root_provider_fixtures['file_metadata_resp']
+        
+        metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', path.identifier)
+        aiohttpretty.register_uri('GET', metadata_url, body=json.dumps(metadata))
+
+        url = provider._build_filecache_url(str(provider.share['id']), 'files', metadata['Data']['UploadName'])
+        aiohttpretty.register_uri('GET', url, body=body)
+
+        result = await provider.download(path)
+        content = await result.read()
+
+        assert content == body
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download_path_is_dir(self, provider):
+        path = WaterButlerPath('/lets-go-dir/')
+        with pytest.raises(exceptions.DownloadError):
+            await provider.download(path)
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_download_id_not_found(self, provider):
+        path = WaterButlerPath('/lets-go-crazy')
+        with pytest.raises(exceptions.DownloadError):
+            await provider.download(path)
 
 class TestCreateFolder:
 
@@ -293,3 +401,153 @@ class TestCreateFolder:
     async def test_must_be_folder(self, provider, monkeypatch):
         with pytest.raises(exceptions.CreateFolderError) as e:
             await provider.create_folder(WaterButlerPath('/hoge.foo', _ids=('this', 'file')))
+    
+class TestOperationsOrMisc:
+
+    def test_path_from_metadata(self, provider, root_provider_fixtures):
+        item = root_provider_fixtures['file_metadata']
+        src_path = RushFilesPath('/Tasks.xlsx', _ids=(provider.share['id'], item['InternalName']))
+
+        metadata = RushFilesFileMetadata(item, src_path)
+        child_path = provider.path_from_metadata(src_path.parent, metadata)
+
+        assert child_path.full_path == src_path.full_path
+        assert child_path == src_path
+
+class TestIntraMove:
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_intra_move_file(self, provider, root_provider_fixtures, intra_fixtures, file_metadata_response):
+        item = file_metadata_response['Data']
+        src_path = WaterButlerPath('/hoge.txt', _ids=(provider, item['InternalName']))
+        dest_path = WaterButlerPath('/super/hoge.txt', _ids=(provider, item['InternalName'], item['InternalName']))
+
+        metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
+        intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        del_url = provider._build_filecache_url(str(provider.share['id']), 'files', dest_path.identifier)
+        aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
+        aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_move_file_resp_metadata'])
+        aiohttpretty.register_json_uri('DELETE', del_url)
+
+        result, created = await provider.intra_move(provider, src_path, dest_path)
+        expected= RushFilesFileMetadata(item, dest_path)
+
+        assert result == expected
+    
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_intra_move_folder(self, provider, root_provider_fixtures, intra_fixtures, folder_metadata_response):
+        item = folder_metadata_response['Data']
+        src_path = WaterButlerPath('/foo/', _ids=(provider, item['InternalName']))
+        dest_path = WaterButlerPath('/super/foo/', _ids=(provider, item['InternalName'], item['InternalName']))
+
+        metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
+        children_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'], 'children')
+        intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        del_url = provider._build_filecache_url(str(provider.share['id']), 'files', dest_path.identifier)
+        aiohttpretty.register_json_uri('GET', metadata_url, body=folder_metadata_response)
+        aiohttpretty.register_json_uri('GET', children_url, body=intra_fixtures['intra_folder_children_metadata'])
+        aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_move_folder_resp_metadata'])
+        aiohttpretty.register_json_uri('DELETE', del_url)
+
+        expected = RushFilesFolderMetadata(item, dest_path)
+        expected.children = await provider._folder_metadata(dest_path)
+
+        result, created = await provider.intra_move(provider, src_path, dest_path)
+
+        assert result == expected
+    
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_intra_move_duplicated_file(self, provider, root_provider_fixtures, intra_fixtures, file_metadata_response):
+        item = file_metadata_response['Data']
+        src_path = WaterButlerPath('/hoge.txt', _ids=(provider, item['InternalName']))
+        dest_path = WaterButlerPath('/super/hoge.txt', _ids=(provider, item['InternalName'], item['InternalName']))
+
+        metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
+        intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        del_url = provider._build_filecache_url(str(provider.share['id']), 'files', dest_path.identifier)
+        aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
+        aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_duplicated_file_resp_metadata'])
+        aiohttpretty.register_json_uri('DELETE', del_url)
+
+        result, created = await provider.intra_move(provider, src_path, dest_path)
+
+        duplicated_path =  WaterButlerPath('/super/hoge(duplicated 2021-11-18T15:44:36.4329227Z).txt', 
+                                            _ids=(provider, item['InternalName']))
+        duplicated_item = intra_fixtures['intra_duplicated_file_resp_metadata']['Data']['ClientJournalEvent']['RfVirtualFile']
+        expected= RushFilesFileMetadata(duplicated_item, duplicated_path)
+
+        assert result == expected
+    
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_intra_move_duplicated_folder(self, provider, root_provider_fixtures, intra_fixtures, folder_metadata_response):
+        item = folder_metadata_response['Data']
+        src_path = WaterButlerPath('/foo/', _ids=(provider, item['InternalName']))
+        dest_path = WaterButlerPath('/super/foo/', _ids=(provider, item['InternalName'], item['InternalName']))
+
+        metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
+        children_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'], 'children')
+        intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        del_url = provider._build_filecache_url(str(provider.share['id']), 'files', dest_path.identifier)
+        aiohttpretty.register_json_uri('GET', metadata_url, body=folder_metadata_response)
+        aiohttpretty.register_json_uri('GET', children_url, body=intra_fixtures['intra_folder_children_metadata'])
+        aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_duplicated_folder_resp_metadata'])
+        aiohttpretty.register_json_uri('DELETE', del_url)
+
+        duplicated_path =  WaterButlerPath('/super/foo(duplicated 2021-11-18T15:44:36.4329227Z)/', 
+                                            _ids=(provider, item['InternalName'], item['InternalName']))
+        duplicated_item = intra_fixtures['intra_duplicated_folder_resp_metadata']['Data']['ClientJournalEvent']['RfVirtualFile']
+
+        expected = RushFilesFolderMetadata(duplicated_item, duplicated_path)
+        expected.children = await provider._folder_metadata(duplicated_path)
+
+        result, created = await provider.intra_move(provider, src_path, dest_path)
+
+        assert result == expected
+
+class TestIntraCopy:
+
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_intra_copy_file(self, provider, root_provider_fixtures, intra_fixtures, file_metadata_response):
+        item = file_metadata_response['Data']
+        src_path = WaterButlerPath('/hoge.txt', _ids=(provider, item['InternalName']))
+        dest_path = WaterButlerPath('/super/hoge.txt', _ids=(provider, item['InternalName']))
+
+        metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
+        intra_copy_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier, 'clone')
+        intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
+        aiohttpretty.register_json_uri('POST', intra_copy_url, body=intra_fixtures['intra_copy_file_resp_metadata'], status=201)
+        aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_move_file_resp_metadata'])
+
+        result, created = await provider.intra_copy(provider, src_path, dest_path)
+        expected = RushFilesFileMetadata(item, dest_path)
+
+        assert result == expected
+    
+    @pytest.mark.asyncio
+    @pytest.mark.aiohttpretty
+    async def test_intra_copy_duplicated_file(self, provider, root_provider_fixtures, intra_fixtures, file_metadata_response):
+        item = file_metadata_response['Data']
+        src_path = WaterButlerPath('/hoge.txt', _ids=(provider, item['InternalName']))
+        dest_path = WaterButlerPath('/super/hoge.txt', _ids=(provider, item['InternalName']))
+
+        metadata_url = provider._build_clientgateway_url(str(provider.share['id']), 'virtualfiles', item['InternalName'])
+        intra_copy_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier, 'clone')
+        intra_move_url = provider._build_filecache_url(str(provider.share['id']), 'files', src_path.identifier)
+        aiohttpretty.register_json_uri('GET', metadata_url, body=file_metadata_response)
+        aiohttpretty.register_json_uri('POST', intra_copy_url, body=intra_fixtures['intra_duplicated_file_resp_metadata'], status=201)
+        aiohttpretty.register_json_uri('PUT', intra_move_url, body=intra_fixtures['intra_duplicated_file_resp_metadata'])
+
+        result, created = await provider.intra_copy(provider, src_path, dest_path)
+
+        duplicated_path =  WaterButlerPath('/super/hoge(duplicated 2021-11-18T15:44:36.4329227Z).txt', 
+                                            _ids=(provider, intra_fixtures['intra_duplicated_file_resp_metadata']['Data']['ClientJournalEvent']['RfVirtualFile']['InternalName']))
+        duplicated_item = intra_fixtures['intra_duplicated_file_resp_metadata']['Data']['ClientJournalEvent']['RfVirtualFile']
+        expected = RushFilesFileMetadata(duplicated_item, duplicated_path)
+
+        assert result == expected

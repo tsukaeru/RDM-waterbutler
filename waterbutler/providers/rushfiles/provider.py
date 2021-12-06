@@ -146,7 +146,7 @@ class RushFilesProvider(provider.BaseProvider):
             )
             data = await response.json()
         else:
-            raise exceptions.UploadError('The size of this file is 0', code=400)
+            data = await self._upload_request(stream, path, created)
             
         return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), created
     

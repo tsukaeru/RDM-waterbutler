@@ -246,7 +246,8 @@ class RushFilesProvider(provider.BaseProvider):
     
     async def _upload_request(self, stream, path, created):
         now = self._get_time_for_sending()
-        metadata = await self.metadata(path)
+        if not created:
+            metadata = await self.metadata(path)
         request_body = json.dumps({
             'RfVirtualFile': {
                 'ShareId': self.share['id'],

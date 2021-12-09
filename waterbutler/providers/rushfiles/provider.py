@@ -265,7 +265,7 @@ class RushFilesProvider(provider.BaseProvider):
         if created:
             upload_url =  self._build_filecache_url(str(self.share['id']), 'files')
         else:
-            upload_url =  self._build_filecache_url(str(self.share['id']), 'files', path.extra['internalName'])
+            upload_url =  self._build_filecache_url(str(self.share['id']), 'files', path.internal_name)
 
         response = await self.make_request(
             'POST' if created else 'PUT',
@@ -364,14 +364,18 @@ class RushFilesProvider(provider.BaseProvider):
             return RushFilesFolderMetadata(resp['Data']['ClientJournalEvent']['RfVirtualFile'], path)
 
     def path_from_metadata(self, parent_path, metadata) -> WaterButlerPath:
-        return parent_path.child(metadata.name, _id=metadata.extra['internalName'],
+        return parent_path.child(metadata.name, _id=metadata.internal_name,
                                  folder=metadata.is_folder)
     
     async def zip(self, path: WaterButlerPath, **kwargs) -> asyncio.StreamReader:
-        #TODO RushFiles allows downloading entire folders from web client
-        # so probably there is also a way to to this with the API.
-        # I will check and if there is, it may be more efficient then default behaviour.
-        return super().zip(path, kwargs)
+        metadata = await self.metadata(path)
+        resp = await self.make_request(
+            'GET',
+            self._build_filecache_url(str(self.share['id']), 'folders', metadata.internal_name),
+            expects=(200,),
+            throws=exceptions.DownloadError,
+        )
+        return 
     
     def _build_filecache_url(self, *segments, **query):
         return provider.build_url('https://filecache01.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)

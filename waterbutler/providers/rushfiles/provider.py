@@ -11,6 +11,7 @@ from aiohttp.client import patch
 from waterbutler.core import provider, streams
 from waterbutler.core.path import WaterButlerPath, WaterButlerPathPart
 from waterbutler.core import exceptions
+from waterbutler.core.utils import ZipStreamGenerator
 
 from waterbutler.providers.rushfiles import settings as pd_settings
 from waterbutler.providers.rushfiles.metadata import (RushFilesRevision,
@@ -374,7 +375,11 @@ class RushFilesProvider(provider.BaseProvider):
             expects=(200,),
             throws=exceptions.DownloadError,
         )
-        return 
+        metadata = await self.metadata(path)
+        if path.is_file:
+            metadata = [metadata]
+            path = path.parent
+        return streams.ZipStreamReader(ZipStreamGenerator(self, path, *metadata)) 
     
     def _build_filecache_url(self, *segments, **query):
         return provider.build_url('https://filecache01.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)

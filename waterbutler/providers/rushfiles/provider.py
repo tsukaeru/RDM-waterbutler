@@ -137,7 +137,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'LastWriteTime': src_metadata['LastWriteTime'],
                 'Attributes': src_metadata['Attributes'],
             },
-            'TransmitId': str(self._generate_uuid),
+            'TransmitId': self._generate_uuid(),
             'ClientJournalEventType': 16,
             'DeviceId': 'waterbutler'
         })
@@ -229,10 +229,11 @@ class RushFilesProvider(provider.BaseProvider):
             data = await self._upload_request(stream, path, created)
             response = await self.make_request(
                 'PUT',
-                data['Data']['url'],
+                data['Data']['Url'],
                 headers={
                     'Content-Type': 'application/octet-stream',
-                    'Content-Range': '0-' + stream.size + '/*'
+                    'Content-Range': 'bytes 0-' + str(stream.size-1) + '/*',
+                    'Content-Length': str(stream.size)
                 },
                 data=stream,
                 expects=(200,201,202,),
@@ -242,7 +243,7 @@ class RushFilesProvider(provider.BaseProvider):
         else:
             data = await self._upload_request(stream, path, created)
             
-        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), created
+        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile'], path), created
     
     async def _upload_request(self, stream, path, created):
         now = self._get_time_for_sending()
@@ -252,14 +253,14 @@ class RushFilesProvider(provider.BaseProvider):
             'RfVirtualFile': {
                 'ShareId': self.share['id'],
                 'ParrentId': path.parent.identifier,
-                'EndOfFile': stream.size,
+                'EndOfFile': str(stream.size),
                 'PublicName': path.name,
                 'CreationTime': now if created else metadata.created_utc,
                 'LastAccessTime': now,
                 'LastWriteTime': now,
                 'Attributes': 128,
             },
-            'TransmitId': str(self._generate_uuid),
+            'TransmitId': self._generate_uuid(),
             'ClientJournalEventType': 0 if created else 3,
             'DeviceId': 'waterbutler'
         })
@@ -349,7 +350,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'LastWriteTime': now,
                 'Attributes': 16,
             },
-            'TransmitId': str(self._generate_uuid),
+            'TransmitId': self._generate_uuid(),
             'ClientJournalEventType': 0,
             'DeviceId': 'waterbutler'
         })
@@ -437,6 +438,7 @@ class RushFilesProvider(provider.BaseProvider):
     
     def _generate_uuid(self) -> str:
         uuid = str(uuid4())
+        print('\nuuid is ' + uuid)
         return uuid.replace('-', '')
 
     def _get_time_for_sending(self) -> str:

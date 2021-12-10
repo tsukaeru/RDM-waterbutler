@@ -368,10 +368,9 @@ class RushFilesProvider(provider.BaseProvider):
                                  folder=metadata.is_folder)
     
     async def zip(self, path: WaterButlerPath, **kwargs) -> asyncio.StreamReader:
-        metadata = await self.metadata(path)
         resp = await self.make_request(
             'GET',
-            self._build_filecache_url(str(self.share['id']), 'folders', metadata.internal_name),
+            self._build_filecache_url(str(self.share['id']), 'folders', path.identifier),
             expects=(200,),
             throws=exceptions.DownloadError,
         )

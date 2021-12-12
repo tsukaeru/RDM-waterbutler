@@ -375,11 +375,7 @@ class RushFilesProvider(provider.BaseProvider):
             expects=(200,),
             throws=exceptions.DownloadError,
         )
-        metadata = await self.metadata(path)
-        if path.is_file:
-            metadata = [metadata]
-            path = path.parent
-        return streams.ZipStreamReader(ZipStreamGenerator(self, path, *metadata)) 
+        return resp.content
     
     def _build_filecache_url(self, *segments, **query):
         return provider.build_url('https://filecache01.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)

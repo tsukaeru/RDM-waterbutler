@@ -194,7 +194,7 @@ class TestValidatePath:
         parent_path = RushFilesPath('/', _ids=[root_id])
         expected_path = RushFilesPath('/{}'.format(file_name), _ids=[root_id, file_id])
 
-        parent_url = provider.build_url(root_id, 'virtualfiles', root_id, 'children')
+        parent_url = provider._build_clientgateway_url(root_id, 'virtualfiles', root_id, 'children')
         aiohttpretty.register_json_uri('GET', parent_url,
                                        body=root_provider_fixtures['children_metadata'], status=200)
 
@@ -215,7 +215,7 @@ class TestValidatePath:
         parent_path = RushFilesPath('/', _ids=[root_id])
         expected_path = RushFilesPath('/{}/'.format(folder_name), _ids=[root_id, folder_id])
 
-        parent_url = provider.build_url(root_id, 'virtualfiles', root_id, 'children')
+        parent_url = provider._build_clientgateway_url(root_id, 'virtualfiles', root_id, 'children')
         aiohttpretty.register_json_uri('GET', parent_url,
                                        body=root_provider_fixtures['children_metadata'], status=200)
 
@@ -239,7 +239,7 @@ class TestValidatePath:
         expected_path = RushFilesPath('/{}/{}'.format(parent_name, subfile_name),
                                      _ids=[root_id, parent_id, subfile_id])
 
-        parent_url = provider.build_url(root_id, 'virtualfiles', parent_id, 'children')
+        parent_url = provider._build_clientgateway_url(root_id, 'virtualfiles', parent_id, 'children')
         aiohttpretty.register_json_uri('GET', parent_url,
                                        body=root_provider_fixtures['children_metadata'], status=200)
 

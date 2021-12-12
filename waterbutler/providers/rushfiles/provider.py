@@ -438,7 +438,6 @@ class RushFilesProvider(provider.BaseProvider):
     
     def _generate_uuid(self) -> str:
         uuid = str(uuid4())
-        print('\nuuid is ' + uuid)
         return uuid.replace('-', '')
 
     def _get_time_for_sending(self) -> str:

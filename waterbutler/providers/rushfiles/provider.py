@@ -125,9 +125,9 @@ class RushFilesProvider(provider.BaseProvider):
             await dest_provider.delete(dest_path)
 
         src_metadata = await self._file_metadata(src_path, raw=True)                 
-        now = self._get_time_for_sending()
         request_body = json.dumps({
             'RfVirtualFile': {
+                'InternalName': src_path.identifier,
                 'ShareId': self.share['id'],
                 'ParrentId': dest_path.parent.identifier,
                 'EndOfFile': src_metadata['EndOfFile'] if src_path.is_file else 0,
@@ -138,7 +138,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'LastWriteTime': src_metadata['LastWriteTime'],
                 'Attributes': src_metadata['Attributes'],
             },
-            'TransmitId': str(self._generate_uuid),
+            'TransmitId': self._generate_uuid(),
             'ClientJournalEventType': 16,
             'DeviceId': 'waterbutler'
         })
@@ -348,7 +348,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'LastWriteTime': now,
                 'Attributes': 16,
             },
-            'TransmitId': str(self._generate_uuid),
+            'TransmitId': self._generate_uuid(),
             'ClientJournalEventType': 0,
             'DeviceId': 'waterbutler'
         })

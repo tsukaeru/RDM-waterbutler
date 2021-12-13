@@ -68,7 +68,7 @@ class RushFilesProvider(provider.BaseProvider):
             return RushFilesPath('/', _ids=[self.share['id']], folder=True)
         
         is_folder = path.endswith('/')
-        children_path_list = path.strip('/').split('/')
+        children_path_list = [parse.unquote(x) for x in path.strip('/').split('/')]
         inter_id_list = [self.share['id']]
         current_inter_id = self.share['id']
 

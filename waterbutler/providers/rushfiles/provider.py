@@ -12,6 +12,7 @@ from aiohttp.client import patch
 from waterbutler.core import provider, streams
 from waterbutler.core.path import WaterButlerPath, WaterButlerPathPart
 from waterbutler.core import exceptions
+from waterbutler.core.utils import ZipStreamGenerator
 
 from waterbutler.providers.rushfiles import settings as pd_settings
 from waterbutler.providers.rushfiles.metadata import (RushFilesRevision,
@@ -136,9 +137,9 @@ class RushFilesProvider(provider.BaseProvider):
             await dest_provider.delete(dest_path)
 
         src_metadata = await self._file_metadata(src_path, raw=True)                 
-        now = self._get_time_for_sending()
         request_body = json.dumps({
             'RfVirtualFile': {
+                'InternalName': src_path.identifier,
                 'ShareId': self.share['id'],
                 'ParrentId': dest_path.parent.identifier,
                 'EndOfFile': src_metadata['EndOfFile'] if src_path.is_file else 0,
@@ -149,7 +150,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'LastWriteTime': src_metadata['LastWriteTime'],
                 'Attributes': src_metadata['Attributes'],
             },
-            'TransmitId': str(self._generate_uuid),
+            'TransmitId': self._generate_uuid(),
             'ClientJournalEventType': ClientJournalEventType.MOVE,
             'DeviceId': 'waterbutler'
         })
@@ -219,7 +220,7 @@ class RushFilesProvider(provider.BaseProvider):
         if path.is_dir:
             raise exceptions.DownloadError('Path must be a file', code=404)
 
-        metadata = await self.metadata(path)
+        metadata = await self.metadata(path, revision=revision)
             
         resp = await self.make_request(
             'GET',
@@ -241,10 +242,11 @@ class RushFilesProvider(provider.BaseProvider):
             data = await self._upload_request(stream, path, created)
             response = await self.make_request(
                 'PUT',
-                data['Data']['url'],
+                data['Data']['Url'],
                 headers={
                     'Content-Type': 'application/octet-stream',
-                    'Content-Range': '0-' + stream.size + '/*'
+                    'Content-Range': 'bytes 0-' + str(stream.size-1) + '/*',
+                    'Content-Length': str(stream.size)
                 },
                 data=stream,
                 expects=(200,201,202,),
@@ -254,22 +256,24 @@ class RushFilesProvider(provider.BaseProvider):
         else:
             data = await self._upload_request(stream, path, created)
             
-        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile']), created
+        return RushFilesFileMetadata(data['Data']['ClientJournalEvent']['RfVirtualFile'], path), created
     
     async def _upload_request(self, stream, path, created):
         now = self._get_time_for_sending()
+        if not created:
+            metadata = await self.metadata(path)
         request_body = json.dumps({
             'RfVirtualFile': {
                 'ShareId': self.share['id'],
                 'ParrentId': path.parent.identifier,
-                'EndOfFile': stream.size,
+                'EndOfFile': str(stream.size),
                 'PublicName': path.name,
-                'CreationTime': now if created else path.created_utc,
+                'CreationTime': now if created else metadata.created_utc,
                 'LastAccessTime': now,
                 'LastWriteTime': now,
                 'Attributes': Attributes.NORMAL,
             },
-            'TransmitId': str(self._generate_uuid),
+            'TransmitId': self._generate_uuid(),
             'ClientJournalEventType': ClientJournalEventType.CREATE if created else ClientJournalEventType.UPDATE,
             'DeviceId': 'waterbutler'
         })
@@ -277,7 +281,7 @@ class RushFilesProvider(provider.BaseProvider):
         if created:
             upload_url =  self._build_filecache_url(str(self.share['id']), 'files')
         else:
-            upload_url =  self._build_filecache_url(str(self.share['id']), 'files', path.extra['internalName'])
+            upload_url =  self._build_filecache_url(str(self.share['id']), 'files', path.identifier)
 
         response = await self.make_request(
             'POST' if created else 'PUT',
@@ -330,12 +334,24 @@ class RushFilesProvider(provider.BaseProvider):
         if path.is_dir:
             return await self._folder_metadata(path, raw=raw)
 
-        return await self._file_metadata(path, raw=raw)
+        return await self._file_metadata(path, revision=revision, raw=raw)
 
     async def revisions(self, path: RushFilesPath,  # type: ignore
                         **kwargs) -> List[RushFilesRevision]:
-        # Probably https://clientgateway.rushfiles.com/swagger/ui/index#!/VirtualFile/VirtualFile_GetVirtualFileHistory
-        raise NotImplementedError
+        
+        if path.identifier == None:
+            raise NotFoundError(str(path))
+
+        async with self.request(
+            'GET',
+            self._build_clientgateway_url(str(self.share['id']), 'virtualfiles', path.identifier, 'history'),
+            expects=(200, ),
+            throws=exceptions.RevisionsError
+        ) as response:
+            data = await response.json()
+            revisions = data['Data']
+
+        return [RushFilesRevision(each['File']) for each in revisions] 
 
     async def create_folder(self,
                             path: WaterButlerPath,
@@ -359,7 +375,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'LastWriteTime': now,
                 'Attributes': Attributes.DIRECTORY,
             },
-            'TransmitId': str(self._generate_uuid),
+            'TransmitId': self._generate_uuid(),
             'ClientJournalEventType': ClientJournalEventType.CREATE,
             'DeviceId': 'waterbutler'
         })
@@ -376,14 +392,17 @@ class RushFilesProvider(provider.BaseProvider):
             return RushFilesFolderMetadata(resp['Data']['ClientJournalEvent']['RfVirtualFile'], path)
 
     def path_from_metadata(self, parent_path, metadata) -> WaterButlerPath:
-        return parent_path.child(metadata.name, _id=metadata.extra['internalName'],
+        return parent_path.child(metadata.name, _id=metadata.internal_name,
                                  folder=metadata.is_folder)
     
     async def zip(self, path: WaterButlerPath, **kwargs) -> asyncio.StreamReader:
-        #TODO RushFiles allows downloading entire folders from web client
-        # so probably there is also a way to to this with the API.
-        # I will check and if there is, it may be more efficient then default behaviour.
-        return super().zip(path, kwargs)
+        resp = await self.make_request(
+            'GET',
+            self._build_filecache_url(str(self.share['id']), 'folders', path.identifier),
+            expects=(200,),
+            throws=exceptions.DownloadError,
+        )
+        return resp.content
     
     def _build_filecache_url(self, *segments, **query):
         return provider.build_url('https://filecache01.{}'.format(self.share['domain']), 'api', 'shares', *segments, **query)
@@ -423,19 +442,30 @@ class RushFilesProvider(provider.BaseProvider):
                              path: RushFilesPath,
                              revision: str=None,
                              raw: bool=False) -> Union[dict, BaseRushFilesMetadata]:
+        if revision:
+            url = self._build_clientgateway_url(str(self.share['id']), 'virtualfiles', path.identifier, 'history')
+        else:
+            url = self._build_clientgateway_url(str(self.share['id']), 'virtualfiles', path.identifier)
+
         response = await self.make_request(
             'GET',
-            self._build_clientgateway_url(str(self.share['id']), 'virtualfiles', path.identifier),
+            url,
             expects=(200, 404,),
             throws=exceptions.MetadataError,
         )
-
         if response.status == 404:
             raise exceptions.NotFoundError(path)
-
+        
         res = await response.json()
 
-        return res['Data'] if raw else RushFilesFileMetadata(res['Data'], path)
+        if revision:
+            try:
+                res = next(x for x in res['Data'] if str(x['File']['Tick']) == revision)
+            except StopIteration:
+                raise exceptions.NotFoundError(str(path))
+            return res['File'] if raw else RushFilesFileMetadata(res['File'], path)
+        else:
+            return res['Data'] if raw else RushFilesFileMetadata(res['Data'], path)
 
     def _search_inter_id(self, 
                         res: dict, 

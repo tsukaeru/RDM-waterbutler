@@ -3,6 +3,7 @@ import asyncio
 import datetime
 import functools
 from uuid import uuid4
+from enum import IntEnum
 from urllib import parse
 from typing import List, Tuple, Union
 
@@ -30,6 +31,17 @@ class RushFilesPathPart(WaterButlerPathPart):
 class RushFilesPath(WaterButlerPath):
     PART_CLASS = RushFilesPathPart
     #TODO Override other properties and methods if necessary
+
+class Attributes(IntEnum):
+    DIRECTORY = 16
+    ARCHIVE = 32
+    NORMAL = 128
+
+class ClientJournalEventType(IntEnum):
+    CREATE = 0
+    DELETE = 1
+    UPDATE = 3
+    MOVE = 16
 
 #TODO Implement file handling methods
 #TODO Check type of parameters and adjust method declaration when appropriate. (WaterButlerPath -> RushFilesPath)
@@ -139,7 +151,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'Attributes': src_metadata['Attributes'],
             },
             'TransmitId': self._generate_uuid(),
-            'ClientJournalEventType': 16,
+            'ClientJournalEventType': ClientJournalEventType.MOVE,
             'DeviceId': 'waterbutler'
         })
         
@@ -259,10 +271,10 @@ class RushFilesProvider(provider.BaseProvider):
                 'CreationTime': now if created else metadata.created_utc,
                 'LastAccessTime': now,
                 'LastWriteTime': now,
-                'Attributes': 128,
+                'Attributes': Attributes.NORMAL,
             },
             'TransmitId': self._generate_uuid(),
-            'ClientJournalEventType': 0 if created else 3,
+            'ClientJournalEventType': ClientJournalEventType.CREATE if created else ClientJournalEventType.UPDATE,
             'DeviceId': 'waterbutler'
         })
         
@@ -299,7 +311,7 @@ class RushFilesProvider(provider.BaseProvider):
                         self._build_filecache_url(str(self.share['id']), 'files', path.identifier),
                         data=json.dumps({
                             "TransmitId": self._generate_uuid(),
-                            "ClientJournalEventType": 1,
+                            "ClientJournalEventType": ClientJournalEventType.DELETE,
                             "DeviceId": "waterbutler "
                         }),
                         headers={'Content-Type': 'application/json'},
@@ -361,10 +373,10 @@ class RushFilesProvider(provider.BaseProvider):
                 'CreationTime': now,
                 'LastAccessTime': now,
                 'LastWriteTime': now,
-                'Attributes': 16,
+                'Attributes': Attributes.DIRECTORY,
             },
             'TransmitId': self._generate_uuid(),
-            'ClientJournalEventType': 0,
+            'ClientJournalEventType': ClientJournalEventType.CREATE,
             'DeviceId': 'waterbutler'
         })
         

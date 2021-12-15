@@ -264,9 +264,11 @@ class RushFilesProvider(provider.BaseProvider):
             metadata = await self.metadata(path)
         request_body = json.dumps({
             'RfVirtualFile': {
+                'InternalName': path.identifier if not created else '',
                 'ShareId': self.share['id'],
                 'ParrentId': path.parent.identifier,
                 'EndOfFile': str(stream.size),
+                'Tick': 0,
                 'PublicName': path.name,
                 'CreationTime': now if created else metadata.created_utc,
                 'LastAccessTime': now,

@@ -268,7 +268,7 @@ class RushFilesProvider(provider.BaseProvider):
                 'ShareId': self.share['id'],
                 'ParrentId': path.parent.identifier,
                 'EndOfFile': str(stream.size),
-                'Tick': 0,
+                'Tick': 0, # Tick is required, but ignored so can be set to any value"
                 'PublicName': path.name,
                 'CreationTime': now if created else metadata.created_utc,
                 'LastAccessTime': now,
